@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Node.js
+node_modules/
+dist/
+build/
+.npm/
+
+# PlatformIO / Arduino
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Runtime data and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+logs/
+runtime-data/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+secrets/
+wifi-credentials.*
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
