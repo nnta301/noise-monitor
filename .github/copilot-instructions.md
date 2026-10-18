@@ -24,9 +24,11 @@ ESP32 with Arduino/PlatformIO, FastAPI with SQLite, and React with TypeScript.
 
 ## Telemetry and component boundaries
 
-- Check that changed producers and consumers follow the same approved
-  telemetry contract. Identify incompatible changes across firmware,
-  simulator, backend, shared fixtures, and dashboard.
+- Check that changed producers and consumers remain compatible with the
+  documented telemetry contract. Treat unresolved TODO items as requiring
+  clarification; enforce requirements only when they are explicitly approved.
+  Identify incompatible changes across firmware, simulator, backend, shared
+  fixtures, and dashboard.
 - Preserve measurement time separately from server receipt time. Do not
   silently replace missing measurements with zero or unsynchronized times
   with receipt timestamps.
