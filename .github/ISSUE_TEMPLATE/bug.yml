@@ -16,6 +16,16 @@ body:
     validations:
       required: true
   - type: textarea
+    id: dependencies-and-blockers
+    attributes:
+      label: Known dependencies and blockers
+      description: Link related issues or pull requests, and describe anything that prevents investigation or reproduction. Write "None known" if there are none.
+      placeholder: |
+        Related: #...
+        Blockers: None known
+    validations:
+      required: true
+  - type: textarea
     id: expected
     attributes:
       label: Expected result
