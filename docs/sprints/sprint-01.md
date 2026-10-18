@@ -15,6 +15,7 @@
 | [#5](https://github.com/nnta301/noise-monitor/issues/5) | Build a telemetry simulator for development and testing |
 | [#6](https://github.com/nnta301/noise-monitor/issues/6) | Build the live monitoring dashboard |
 | [#7](https://github.com/nnta301/noise-monitor/issues/7) | Integrate and validate the end-to-end telemetry pipeline |
+| [#9](https://github.com/nnta301/noise-monitor/issues/9) | Add Copilot review guidance and GitHub Actions CI |
 
 Task details, acceptance criteria, dependencies, assignments, and progress are tracked in the linked GitHub issues.
 
@@ -41,7 +42,9 @@ None recorded. The actual hardware must be confirmed before implementing device 
 
 ### Scope changes
 
-None.
+- Added [#9](https://github.com/nnta301/noise-monitor/issues/9) for
+  repository-wide Copilot review guidance and baseline CI. Component-specific
+  checks will be added with the corresponding implementation PRs.
 
 ### Retrospective
 
