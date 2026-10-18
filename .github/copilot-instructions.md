@@ -12,6 +12,12 @@ ESP32 with Arduino/PlatformIO, FastAPI with SQLite, and React with TypeScript.
 - Review changes against their stated scope. Do not require future-sprint
   features in a PR that does not implement them.
 - Repository-facing content and review comments must be written in English.
+- For every review, identify the relevant sources of truth for the changed
+  behavior, such as requirements, approved contracts or schemas, configuration,
+  tests, examples, and contributor documentation or templates. Check them for
+  consistency with the implementation and with each other. Report concrete
+  contradictions or stale guidance, but do not treat drafts or TODO items as
+  finalized requirements.
 
 ## Privacy and measurement
 
@@ -56,3 +62,8 @@ ESP32 with Arduino/PlatformIO, FastAPI with SQLite, and React with TypeScript.
   success steps or silently ignored failures.
 - Do not claim tests or hardware checks passed without evidence.
   AI review supplements, but does not replace, another team member's review.
+- When a change adds or modifies repository-wide workflow, CI, templates,
+  contracts, or developer tooling, inspect the affected contributor-facing
+  documentation and `.github` templates for stale or inconsistent guidance.
+  Flag only concrete inconsistencies and do not request unrelated
+  documentation changes.
