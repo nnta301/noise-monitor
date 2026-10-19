@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Telemetry Contract v1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "v1"
+    },
+    "device_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "boot_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "measured_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "timezone": {
+      "type": "string",
+      "minLength": 1
+    },
+    "time_sync_status": {
+      "type": "string",
+      "enum": ["synced", "unsynced", "monotonic"]
+    },
+    "median_p2p": {
+      "type": "array",
+      "items": {
+        "type": ["integer", "null"]
+      },
+      "minItems": 10,
+      "maxItems": 10
+    },
+    "peak_p2p": {
+      "type": "array",
+      "items": {
+        "type": ["integer", "null"]
+      },
+      "minItems": 10,
+      "maxItems": 10
+    },
+    "quality_flags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["ok", "clipping", "out_of_range", "missing"]
+      },
+      "minItems": 10,
+      "maxItems": 10
+    }
+  },
+  "required": [
+    "schema_version",
+    "device_id",
+    "boot_id",
+    "sequence",
+    "measured_at",
+    "timezone",
+    "time_sync_status",
+    "median_p2p",
+    "peak_p2p",
+    "quality_flags"
+  ],
+  "additionalProperties": false
+}
