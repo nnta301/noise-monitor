@@ -1,6 +1,6 @@
 # Telemetry Contract v1
 
-This document defines the shared data contract for telemetry ingestion, ensuring alignment across firmware, the simulator, the API, and the dashboard. 
+This document defines the shared data contract for telemetry ingestion, ensuring alignment across firmware, the simulator, the API, and the dashboard.
 
 ## Identity and Time
 
@@ -44,7 +44,7 @@ Missing samples must be explicitly represented in the `quality_flags` array as `
 
 **Endpoint:** `POST /api/v1/telemetry`
 
-- **Idempotency & Deduplication:** The unique identifier for a packet is the composite key `(device_id, boot_id, sequence)`. 
+- **Idempotency & Deduplication:** The unique identifier for a packet is the composite key `(device_id, boot_id, sequence)`.
 - **Retries:** The server must process retransmissions idempotently and record/display data gaps. If the server receives a packet with an existing key and identical content, it must return `202 Accepted` but create no additional database record.
 - **Conflicts:** If the server receives a packet with an existing key but conflicting content, it must explicitly reject it with a `409 Conflict` error.
 - **Validation:** Payloads that do not contain exactly 10 entries in the data arrays, omit required fields, or violate data types must be rejected with a `400 Bad Request`.

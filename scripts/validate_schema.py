@@ -12,7 +12,7 @@ def load_json(filepath):
 
 def main():
     print("Validating fixtures against schema...")
-    
+
     try:
         schema = load_json(SCHEMA_PATH)
     except FileNotFoundError:
@@ -24,10 +24,10 @@ def main():
     for filename in sorted(os.listdir(FIXTURES_DIR)):
         if not filename.endswith('.json'):
             continue
-            
+
         filepath = os.path.join(FIXTURES_DIR, filename)
         fixture_data = load_json(filepath)
-        
+
         try:
             validate(instance=fixture_data, schema=schema)
             if filename == "invalid_payload.json":
@@ -37,7 +37,7 @@ def main():
                 print(f"[PASS] {filename}")
         except ValidationError as e:
             if filename == "invalid_payload.json":
-                
+
                 print(f"[PASS] {filename} (Caught expected error: {e.message})")
             else:
                 print(f"[FAIL] {filename} - {e.message}")
