@@ -1,0 +1,19 @@
+# Configure CodeRabbit for manual repository reviews.
+# Review rules live in .github/copilot-instructions.md so GitHub Copilot
+# and CodeRabbit use the same source of truth.
+
+language: "en-US"
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  review_details: true
+
+  auto_review:
+    enabled: false
+
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - files: ".github/copilot-instructions.md"
+        applyTo: "**/*"
