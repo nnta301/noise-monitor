@@ -25,7 +25,8 @@
     },
     "timezone": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "pattern": "^[A-Za-z_]+/[A-Za-z_\\-]+$"
     },
     "time_sync_status": {
       "type": "string",
