@@ -8,7 +8,8 @@ FIXTURES_DIR = os.path.join(os.path.dirname(__file__), '../shared/fixtures')
 
 REQUIRED_FIXTURES = {
     "quiet_baseline.json", "rising_levels.json", "brief_peaks.json", "missing_samples.json",
-    "invalid_length.json", "invalid_flag.json", "invalid_format.json"
+    "invalid_length_median.json", "invalid_length_peak.json", "invalid_length_flags.json",
+    "invalid_flag.json", "invalid_format.json"
 }
 
 def load_json(filepath):
@@ -36,7 +37,6 @@ def main():
         fixture_data = load_json(filepath)
 
         try:
-            # Thêm format_checker để bắt lỗi ngày giờ
             validate(instance=fixture_data, schema=schema, format_checker=FormatChecker())
 
             if filename.startswith("invalid_"):
@@ -46,12 +46,11 @@ def main():
                 print(f"[PASS] {filename}")
         except ValidationError as e:
             if filename.startswith("invalid_"):
-                print(f"[PASS] {filename} (Caught expected error: {e.message})")
+                print(f"[PASS] {filename} (Caught expected error at {e.json_path}: {e.message})")
             else:
                 print(f"[FAIL] {filename} - {e.message}")
                 all_passed = False
 
-    # Kiểm tra xem có bị thiếu file nào không
     missing = REQUIRED_FIXTURES - found_fixtures
     if missing:
         print(f"[FAIL] Missing required fixtures: {missing}")
