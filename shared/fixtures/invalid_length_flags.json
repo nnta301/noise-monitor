@@ -6,7 +6,7 @@
   "measured_at": "2026-10-19T22:00:40Z",
   "timezone": "Asia/Ho_Chi_Minh",
   "time_sync_status": "synced",
-  "median_p2p": [40, 42, 41],
-  "peak_p2p": [45, 48, 46],
-  "quality_flags": ["ok", "ok", "ok"]
+  "median_p2p": [40, 42, 41, 40, 43, 41, 40, 42, 40, 41],
+  "peak_p2p": [45, 48, 46, 45, 50, 47, 45, 48, 44, 45],
+  "quality_flags": ["ok", "ok", "ok", "ok", "ok", "ok", "ok", "ok", "ok"]
 }
