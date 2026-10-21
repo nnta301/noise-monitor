@@ -13,20 +13,17 @@
     },
     "boot_id": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "format": "uuid"
     },
     "sequence": {
       "type": "integer",
       "minimum": 0
     },
-    "measured_at": {
-      "type": "string",
-      "format": "date-time"
-    },
+    "measured_at": {},
     "timezone": {
       "type": "string",
-      "minLength": 1,
-      "pattern": "^[A-Za-z_]+/[A-Za-z_\\-]+$"
+      "minLength": 1
     },
     "time_sync_status": {
       "type": "string",
@@ -70,5 +67,56 @@
     "peak_p2p",
     "quality_flags"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "time_sync_status": { "const": "synced" }
+        },
+        "required": ["time_sync_status"]
+      },
+      "then": {
+        "properties": {
+          "measured_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "time_sync_status": { "const": "unsynced" }
+        },
+        "required": ["time_sync_status"]
+      },
+      "then": {
+        "properties": {
+          "measured_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "time_sync_status": { "const": "monotonic" }
+        },
+        "required": ["time_sync_status"]
+      },
+      "then": {
+        "properties": {
+          "measured_at": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  ]
 }
