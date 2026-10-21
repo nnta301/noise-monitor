@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Telemetry 409 Conflict Response",
+  "type": "object",
+  "properties": {
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {"const": "idempotency_conflict"},
+        "message": {"type": "string"},
+        "packet_key": {
+          "type": "object",
+          "properties": {
+            "device_id": {"type": "string", "minLength": 1},
+            "boot_id": {"type": "string", "format": "uuid"},
+            "sequence": {"type": "integer", "minimum": 0}
+          },
+          "required": ["device_id", "boot_id", "sequence"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["code", "message", "packet_key"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["error"],
+  "additionalProperties": false
+}

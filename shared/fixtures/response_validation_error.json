@@ -1,0 +1,1 @@
+{"error":{"code":"validation_error","message":"Telemetry payload validation failed.","fields":[{"path":"/median_p2p/3","code":"missing_requires_null","message":"A missing sample must use null median and peak values."}]}}
