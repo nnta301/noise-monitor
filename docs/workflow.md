@@ -29,6 +29,7 @@ The `CI` workflow runs on pull requests targeting `main` and pushes to
 
 - GitHub Actions workflow validation with actionlint 1.7.12.
 - Whitespace checks over the pull request changes or the pushed commit range.
+- Telemetry schema and shared-fixture validation with `jsonschema[format]==4.26.0` and `tzdata==2026.5`.
 
 The workflow pins the checkout action to a full commit SHA and verifies
 the downloaded actionlint archive with SHA-256. No project secrets or
@@ -50,6 +51,8 @@ Run from the repository root:
 
 ```shell
 actionlint -shellcheck= -pyflakes=
+python -m pip install "jsonschema[format]==4.26.0" "tzdata==2026.5"
+python scripts/validate_schema.py
 git diff --check
 git diff --cached --check
 ```
