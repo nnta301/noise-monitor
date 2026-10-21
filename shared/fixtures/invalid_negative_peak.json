@@ -1,0 +1,12 @@
+{
+  "schema_version": "v1",
+  "device_id": "esp32-01",
+  "boot_id": "123e4567-e89b-12d3-a456-426614174000",
+  "sequence": 17,
+  "measured_at": "2026-10-19T22:00:40Z",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "time_sync_status": "synced",
+  "median_p2p": [40, 42, 41, 0, 43, 41, 40, 42, 40, 41],
+  "peak_p2p": [45, 48, 46, -1, 50, 47, 45, 48, 44, 45],
+  "quality_flags": ["ok", "ok", "ok", "out_of_range", "ok", "ok", "ok", "ok", "ok", "ok"]
+}

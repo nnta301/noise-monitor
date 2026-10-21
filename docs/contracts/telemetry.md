@@ -16,8 +16,8 @@ This document defines the shared data contract for telemetry ingestion, ensuring
 
 Each packet represents a planned 10-second window. The payload contains arrays of exactly 10 entries each, corresponding to one second per entry.
 
-- `median_p2p`: Array of 10 integers representing the median Peak-to-Peak (P2P) amplitude in relative ADC units (not dB SPL).
-- `peak_p2p`: Array of 10 integers representing the absolute highest Peak-to-Peak amplitude in relative ADC units for that second.
+- `median_p2p`: Array of 10 non-negative integers representing the median Peak-to-Peak (P2P) amplitude in relative ADC units (not dB SPL). At each position, it must not exceed the corresponding `peak_p2p` value.
+- `peak_p2p`: Array of 10 non-negative integers representing the absolute highest Peak-to-Peak amplitude in relative ADC units for that second.
 - `quality_flags`: Array of 10 strings categorizing the sample quality. Valid values include `"ok"`, `"clipping"` (saturated samples), `"out_of_range"`, or `"missing"`.
 
 **Handling Missing Data:**
@@ -45,6 +45,61 @@ Missing samples must be explicitly represented in the `quality_flags` array as `
 **Endpoint:** `POST /api/v1/telemetry`
 
 - **Idempotency & Deduplication:** The unique identifier for a packet is the composite key `(device_id, boot_id, sequence)`.
-- **Retries:** The server must process retransmissions idempotently and record/display data gaps. If the server receives a packet with an existing key and identical content, it must return `202 Accepted` but create no additional database record.
-- **Conflicts:** If the server receives a packet with an existing key but conflicting content, it must explicitly reject it with a `409 Conflict` error.
-- **Validation:** Payloads that do not contain exactly 10 entries in the data arrays, omit required fields, or violate data types must be rejected with a `400 Bad Request`.
+- **Content type:** The API uses `application/json` for the response bodies below.
+
+### `202 Accepted`
+
+Returned for both a newly accepted packet and an idempotent retry with identical content.
+
+```json
+{
+  "outcome": "accepted",
+  "packet_key": {
+    "device_id": "esp32-bedroom-01",
+    "boot_id": "550e8400-e29b-41d4-a716-446655440000",
+    "sequence": 42
+  }
+}
+```
+
+For an identical retry, `outcome` is `"duplicate"`. `packet_key` identifies the accepted packet.
+
+### `400 Bad Request`
+
+Returned when payload validation fails.
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Telemetry payload validation failed.",
+    "fields": [
+      {
+        "path": "/median_p2p/3",
+        "code": "missing_requires_null",
+        "message": "A missing sample must use null median and peak values."
+      }
+    ]
+  }
+}
+```
+
+`fields` contains one or more validation failures. Each item uses a JSON Pointer `path`, a stable machine-readable `code`, and a human-readable `message`.
+
+### `409 Conflict`
+
+Returned when the same `(device_id, boot_id, sequence)` key is submitted with different content.
+
+```json
+{
+  "error": {
+    "code": "idempotency_conflict",
+    "message": "A different payload already exists for this packet key.",
+    "packet_key": {
+      "device_id": "esp32-bedroom-01",
+      "boot_id": "550e8400-e29b-41d4-a716-446655440000",
+      "sequence": 42
+    }
+  }
+}
+```

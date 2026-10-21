@@ -32,7 +32,8 @@
     "median_p2p": {
       "type": "array",
       "items": {
-        "type": ["integer", "null"]
+        "type": ["integer", "null"],
+        "minimum": 0
       },
       "minItems": 10,
       "maxItems": 10
@@ -40,7 +41,8 @@
     "peak_p2p": {
       "type": "array",
       "items": {
-        "type": ["integer", "null"]
+        "type": ["integer", "null"],
+        "minimum": 0
       },
       "minItems": 10,
       "maxItems": 10
