@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from noise_monitor.app import create_app
 from noise_monitor.config import Settings, load_settings
+from noise_monitor.timestamps import parse_rfc3339
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -191,3 +192,27 @@ def test_fractional_order_ranges_pagination_and_legacy_migration(tmp_path):
         assert second["items"][0]["packet"]["sequence"] == 0
         bounded = api.get(url + "history", params={"to_at": "2026-10-19T22:00:00Z"}, headers=headers).json()
         assert [item["packet"]["sequence"] for item in bounded["items"]] == [0]
+
+
+@pytest.mark.parametrize("fraction", ["5", "12", "123", "1234", "12345", "123456", "1234567"])
+@pytest.mark.parametrize("status", ["synced", "unsynced"])
+def test_rfc3339_fraction_ingestion_reads_and_ranges(tmp_path, fraction, status):
+    timestamp = f"2026-10-19T22:00:00.{fraction}Z"
+    if status == "unsynced":
+        timestamp = timestamp.lower()
+    expected_microseconds = int(fraction[:6].ljust(6, "0"))
+    assert parse_rfc3339(timestamp).microsecond == expected_microseconds
+    with client(tmp_path) as api:
+        body = {**packet(), "measured_at": timestamp, "time_sync_status": status}
+        assert post(api, body).status_code == 202
+        headers = {"X-Read-Key": "read-a"}
+        url = "/api/v1/devices/esp32-bedroom-01/"
+        latest = api.get(url + "latest", params={"time_sync_status": status}, headers=headers)
+        assert latest.status_code == 200
+        assert latest.json()["packet"]["measured_at"] == timestamp
+        assert latest.json()["freshness"]["status"] == ("stale" if status == "synced" else "unknown")
+        history = api.get(url + "history", params={
+            "time_sync_status": status, "from_at": timestamp, "to_at": timestamp,
+        }, headers=headers)
+        assert history.status_code == 200
+        assert len(history.json()["items"]) == 1
