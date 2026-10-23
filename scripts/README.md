@@ -30,7 +30,7 @@ and identify accelerated mode. Payloads retain the contract without extra
 metadata. The default device ID is `simulator-synthetic-01`; keep synthetic
 device identities separate from real devices.
 
-Send to the API once issue #4 supplies it:
+Send to the project API (see `backend/README.md` for setup and authentication):
 
 ```shell
 .venv/bin/python scripts/simulate_telemetry.py --endpoint http://127.0.0.1:8000/api/v1/telemetry --scenario quiet --duration 60
@@ -62,8 +62,10 @@ require HTTP 202 acknowledgements conforming to the response contract.
 For local credentials, copy `scripts/simulator.env.example` to `.env` (ignored),
 edit locally, and export using your shell (`set -a; source .env; set +a`).
 `NOISE_TELEMETRY_ENDPOINT` supplies the endpoint; `NOISE_DEVICE_KEY` supplies
-the optional `X-Device-Key` header. Confirm that header with the API owner;
-authentication is not defined in contract v1. Use HTTP only on the test network
+the `X-Device-Key` header, required by the project backend. It must match the
+configured device ID; register `simulator-synthetic-01` (the default) or pass a
+registered synthetic `--device-id`. See `NOISE_MONITOR_DEVICE_KEYS_JSON` in
+`backend/README.md`. Use HTTP only on the test network
 and HTTPS with normal certificate verification over the Internet. Credentials
 are not logged, and redirects are refused.
 
@@ -76,11 +78,23 @@ Run tests and lint:
 
 ```shell
 .venv/bin/python -m unittest discover -s scripts/tests -v
-.venv/bin/ruff check scripts/simulate_telemetry.py scripts/tests
+.venv/bin/ruff check scripts/simulate_telemetry.py scripts/check_firmware_contract.py scripts/verify_api_ingestion.py scripts/tests scripts/integration_tests
 .venv/bin/python scripts/validate_schema.py
 ```
 
 Tests use fixed fixtures, a fake clock, and a temporary loopback HTTP stub.
 They require no external service, hardware, or real credentials. The stub
-verifies transport behavior; real backend persistence evidence is still pending.
+verifies transport behavior; project API integration is covered separately as documented below.
 No audio is played or recorded.
+
+## Verify real API deduplication
+
+Use [producer acceptance](../docs/producer-acceptance.md) to run
+`verify_api_ingestion.py` against the actual test API and its SQLite database.
+The procedure supplies the count query for the current backend schema. This
+verifies committed packet counts `0 -> 1 -> 1` as well as `accepted`/`duplicate` responses; it fails
+if an API acknowledges a duplicate but inserts another record. The database is
+opened read-only by the checker, while the two HTTP requests intentionally write
+one synthetic packet through the API. The separate integration suite runs
+against the actual project FastAPI application with a temporary SQLite database; its commands are in the same
+acceptance procedure.

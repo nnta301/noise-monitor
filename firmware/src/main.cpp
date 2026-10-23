@@ -4,7 +4,7 @@
 #include <WiFi.h>
 #include <esp_system.h>
 #include <esp_timer.h>
-#include "noise_features.h"
+#include "noise_telemetry.h"
 #if __has_include("config.local.h")
 #include "config.local.h"
 #else
@@ -19,32 +19,6 @@ static_assert(NOISE_CLIP_LOW >= 0 && NOISE_CLIP_HIGH <= 4095 &&
 QueueHandle_t batches;
 char bootId[37];
 String deviceId;
-
-void serializeBatch(const noise::Batch& batch, String& body) {
-  StaticJsonDocument<2048> json;
-  json["schema_version"] = "v1";
-  json["device_id"] = deviceId;
-  json["boot_id"] = bootId;
-  json["sequence"] = batch.sequence;
-  // No RTC/NTP claim: preserve the ESP timer since this boot, including gaps.
-  json["measured_at"] = batch.measuredMs;
-  json["timezone"] = NOISE_TIMEZONE;
-  json["time_sync_status"] = "monotonic";
-  auto medians = json.createNestedArray("median_p2p");
-  auto peaks = json.createNestedArray("peak_p2p");
-  auto flags = json.createNestedArray("quality_flags");
-  for (const auto& feature : batch.features) {
-    if (strcmp(feature.flag, "missing") == 0) {
-      medians.add(nullptr);
-      peaks.add(nullptr);
-    } else {
-      medians.add(feature.median);
-      peaks.add(feature.peak);
-    }
-    flags.add(feature.flag);
-  }
-  serializeJson(json, body);
-}
 
 void upload(void*) {
   WiFi.mode(WIFI_STA);
@@ -70,6 +44,7 @@ void upload(void*) {
     }
     WiFiClient client;
     HTTPClient http;
+    http.useHTTP10(true);
     http.setConnectTimeout(2000);
     http.setTimeout(2000);
     http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
@@ -80,9 +55,24 @@ void upload(void*) {
     http.addHeader("Content-Type", "application/json");
     if (strlen(NOISE_DEVICE_KEY)) http.addHeader("X-Device-Key", NOISE_DEVICE_KEY);
     String body;
-    serializeBatch(batch, body);
+    StaticJsonDocument<2048> json;
+    noise::fillTelemetry(json, batch, deviceId.c_str(), bootId, NOISE_TIMEZONE);
+    if (json.overflowed() || serializeJson(json, body) == 0) {
+      Serial.printf("network serialization failure sequence=%llu\n", batch.sequence);
+      http.end();
+      continue;
+    }
     const int status = http.POST(body);
-    Serial.printf("network sequence=%llu http_status=%d\n", batch.sequence, status);
+    bool acknowledged = false;
+    if (status == 202) {
+      StaticJsonDocument<512> response;
+      // Parse from the bounded response document without retaining the body.
+      const auto error = deserializeJson(response, http.getStream());
+      acknowledged = !error && noise::matchesAcknowledgement(
+          response.as<JsonVariantConst>(), batch, deviceId.c_str(), bootId);
+    }
+    Serial.printf("network sequence=%llu http_status=%d acknowledged=%s\n",
+                  batch.sequence, status, acknowledged ? "true" : "false");
     http.end();
   }
 }

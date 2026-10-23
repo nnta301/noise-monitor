@@ -33,5 +33,10 @@ Record the board/microphone versions, pins, firmware, sampling rate, gain, P2P c
 
 1. Verify safe power and ADC signals with the confirmed hardware.
 2. Record P2P in a quiet environment and with an appropriate reference signal.
-3. Test saturation, the LED, Wi-Fi/reconnection, and 10-second transmissions.
+3. For Sprint 1, test saturation, Wi-Fi/reconnection, and 10-second transmissions.
+   LED acceptance belongs to the later alert work.
 4. Run a continuous overnight test once the pipeline is ready.
+
+Follow the [producer acceptance procedure](producer-acceptance.md) to record
+actual hardware settings, sound-response observations, network-fault sampling,
+and API receipt evidence for issue #3.

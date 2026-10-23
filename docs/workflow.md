@@ -39,11 +39,16 @@ A green baseline does not mean the application has been built, tested,
 or verified on hardware.
 
 The `Simulator and firmware` job additionally installs
-`scripts/requirements-dev.txt`, lints and tests the simulator against a local
-HTTP stub, runs host C++ feature tests, and compiles the provisional
-`esp32dev_example` target using sanitized configuration. See `scripts/README.md`
-and `firmware/README.md` for matching local commands. This compilation target
-does not confirm the installed board or establish hardware/API acceptance.
+`scripts/requirements-dev.txt` and the project backend. It lints producer tools,
+tests the simulator and persistence verifier against local test services, and
+runs host C++ feature/serializer/acknowledgement tests. It compiles both
+`esp32dev_example` and the active `esp32dev_sampling_compile` path using sanitized
+configuration, then exercises all simulator scenarios and C++-generated payloads
+against the actual FastAPI application with temporary SQLite storage. See
+`scripts/README.md`, `firmware/README.md`, and
+[producer acceptance](producer-acceptance.md) for matching commands and evidence.
+These checks establish software compatibility; the installed board, microphone,
+and sampling during actual network faults still require physical validation.
 
 ### Local checks
 
