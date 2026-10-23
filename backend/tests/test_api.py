@@ -10,6 +10,32 @@ from fastapi.testclient import TestClient
 from noise_monitor.app import create_app
 from noise_monitor.config import Settings, load_settings
 from noise_monitor.timestamps import parse_rfc3339, timestamp_sort_key
+from noise_monitor.storage import connect, SCHEMA
+
+
+@pytest.mark.parametrize("corrupt", [False, True])
+def test_migration_batches_and_atomic_rollback(tmp_path, corrupt):
+    path = tmp_path / "migration.sqlite3"
+    db = sqlite3.connect(path)
+    db.executescript(SCHEMA)
+    payload = json.dumps({"measured_at": "2026-10-19T22:00:00.1234569Z"})
+    for sequence in range(300):
+        db.execute("INSERT INTO packets VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                   ("device", "boot", sequence, "synced", "null", "legacy",
+                    "invalid" if corrupt and sequence == 299 else payload, "receipt"))
+    db.execute("PRAGMA user_version=1")
+    db.commit()
+    db.close()
+    if corrupt:
+        with pytest.raises(json.JSONDecodeError):
+            connect(path)
+    else:
+        connect(path).close()
+    db = sqlite3.connect(path)
+    expected = "legacy" if corrupt else timestamp_sort_key("2026-10-19T22:00:00.1234569Z")
+    assert db.execute("SELECT COUNT(*) FROM packets WHERE measurement_sort_value=?", (expected,)).fetchone()[0] == 300
+    assert db.execute("PRAGMA user_version").fetchone()[0] == (1 if corrupt else 2)
+    db.close()
 
 
 ROOT = Path(__file__).resolve().parents[2]
