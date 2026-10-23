@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from noise_monitor.app import create_app
 from noise_monitor.config import Settings, load_settings
-from noise_monitor.timestamps import parse_rfc3339
+from noise_monitor.timestamps import parse_rfc3339, timestamp_sort_key
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -216,3 +216,39 @@ def test_rfc3339_fraction_ingestion_reads_and_ranges(tmp_path, fraction, status)
         }, headers=headers)
         assert history.status_code == 200
         assert len(history.json()["items"]) == 1
+
+
+def test_sort_keys_preserve_fraction_prefixes_and_offsets():
+    times = ["00", "00.00000001", "00.123456", "00.1234561", "00.1234569", "00.5", "01"]
+    keys = [timestamp_sort_key(f"2026-10-19T22:00:{value}Z") for value in times]
+    assert keys == sorted(keys)
+    assert len(keys) == len(set(keys))
+    assert timestamp_sort_key("2026-10-19T23:00:00.123456100+01:00") == keys[3]
+
+
+@pytest.mark.parametrize("status", ["synced", "unsynced"])
+def test_submicrosecond_order_ranges_pages_and_migration(tmp_path, status):
+    earlier = "2026-10-19T22:00:00.1234561Z"
+    later = "2026-10-19T22:00:00.1234569Z"
+    with client(tmp_path) as api:
+        # Sequence deliberately opposes time order.
+        for seq, timestamp in [(9, earlier), (1, later)]:
+            assert post(api, {**packet(), "sequence": seq, "measured_at": timestamp,
+                              "time_sync_status": status}).status_code == 202
+    db = sqlite3.connect(tmp_path / "telemetry.sqlite3")
+    db.execute("UPDATE packets SET measurement_sort_value='2026-10-19T22:00:00.123456Z'")
+    db.execute("PRAGMA user_version=1")
+    db.commit()
+    db.close()
+    with client(tmp_path) as api:
+        url = "/api/v1/devices/esp32-bedroom-01/"
+        headers = {"X-Read-Key": "read-a"}
+        params = {"time_sync_status": status}
+        assert api.get(url + "latest", params=params, headers=headers).json()["packet"]["sequence"] == 1
+        page = api.get(url + "history", params={**params, "page_size": 1}, headers=headers).json()
+        assert page["items"][0]["measurement_time"] == later
+        next_page = api.get(url + "history", params={**params, "cursor": page["next_cursor"]}, headers=headers).json()
+        assert next_page["items"][0]["measurement_time"] == earlier
+        for bound, expected in [("from_at", later), ("to_at", earlier)]:
+            items = api.get(url + "history", params={**params, bound: expected}, headers=headers).json()["items"]
+            assert [item["measurement_time"] for item in items] == [expected]

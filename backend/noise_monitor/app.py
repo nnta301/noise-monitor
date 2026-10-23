@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .config import Reader, Settings, load_settings
 from .storage import connect
-from .timestamps import parse_rfc3339
+from .timestamps import parse_rfc3339, timestamp_sort_key
 
 MAX_BODY_BYTES = 64 * 1024
 
@@ -54,7 +54,7 @@ def sort_value(packet: dict[str, Any]) -> str:
     value = packet["measured_at"]
     if packet["time_sync_status"] == "monotonic":
         return f"{value:020d}"
-    return parse_rfc3339(value).astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    return timestamp_sort_key(value)
 
 
 def packet_key(packet: dict[str, Any]) -> dict[str, Any]:

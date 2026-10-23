@@ -50,10 +50,11 @@ Telemetry bodies are limited to 65,536 bytes, including streamed bodies without 
 Content-Length header. Larger requests receive `413`/`payload_too_large`.
 Future synced measurement timestamps have freshness `unknown`.
 Timestamp range parameters require full RFC 3339 date-times with explicit offsets.
-RFC 3339 fractions are padded or truncated to six digits for timestamp calculations
-on Python 3.10. Stored payloads retain the original timestamp. Times within the same
-microsecond use the documented boot ID/sequence tie-breaker.
-SQLite startup migrates legacy timestamp sort keys to fixed microsecond precision
+RFC 3339 sort keys preserve all accepted fractional digits, including precision
+beyond microseconds. Only freshness age calculations use microsecond precision.
+Stored payloads retain the original timestamp. Equal measurement instants use
+the documented boot ID/sequence tie-breaker.
+SQLite startup rebuilds legacy timestamp sort keys from the original payload
 in a transaction; packet contents and receipt times are preserved.
 The wheel includes the authoritative schemas directly from `shared/`, so regular
 installations do not need the repository tree at runtime.
