@@ -4,7 +4,7 @@ import base64
 import json
 import sqlite3
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +54,7 @@ def sort_value(packet: dict[str, Any]) -> str:
     value = packet["measured_at"]
     if packet["time_sync_status"] == "monotonic":
         return f"{value:020d}"
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC).isoformat().replace("+00:00", "Z")
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def packet_key(packet: dict[str, Any]) -> dict[str, Any]:
@@ -83,7 +83,7 @@ def row_response(row: sqlite3.Row, fresh_after_seconds: int) -> dict[str, Any]:
     packet = json.loads(row["payload_json"])
     freshness: dict[str, Any] = {"status": "unknown"}
     if packet["time_sync_status"] == "synced":
-        age = max(0, (datetime.now(UTC) - datetime.fromisoformat(packet["measured_at"].replace("Z", "+00:00"))).total_seconds())
+        age = max(0, (datetime.now(timezone.utc) - datetime.fromisoformat(packet["measured_at"].replace("Z", "+00:00"))).total_seconds())
         freshness = {"status": "fresh" if age <= fresh_after_seconds else "stale", "age_seconds": int(age)}
     return {"packet": packet, "measurement_time": packet["measured_at"], "received_at": row["received_at"], "freshness": freshness}
 
@@ -130,7 +130,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if unauthorized:
             return unauthorized
         canonical = json.dumps(packet, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        received_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        received_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         db: sqlite3.Connection = request.app.state.db
         try:
             db.execute("INSERT INTO packets VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (*packet_key(packet).values(), packet["time_sync_status"], json.dumps(packet["measured_at"]), sort_value(packet), canonical, received_at))
@@ -205,4 +205,3 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"items": [row_response(row, actual_settings.fresh_after_seconds) for row in rows], "next_cursor": encode_cursor(rows[-1]) if has_more and rows else None}
 
     return app
-
