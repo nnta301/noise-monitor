@@ -126,7 +126,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     return error(413, "payload_too_large", "Telemetry body exceeds 65536 bytes.")
                 body.extend(chunk)
             packet = json.loads(body)
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        except (ValueError, RecursionError):
             return error(400, "validation_error", "Telemetry payload validation failed.", fields=[{"path": "", "code": "malformed_json", "message": "Request body must be valid JSON."}])
         fields = validate_packet(packet, validator)
         if fields:
