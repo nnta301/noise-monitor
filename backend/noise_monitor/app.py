@@ -5,7 +5,7 @@ import json
 import sqlite3
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from pathlib import Path
+from importlib.resources import files
 from typing import Any
 
 from fastapi import FastAPI, Header, Query, Request
@@ -17,8 +17,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .config import Reader, Settings, load_settings
 from .storage import connect
 
-ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_PATH = ROOT / "shared" / "schemas" / "telemetry_v1.json"
+MAX_BODY_BYTES = 64 * 1024
 
 
 def error(status: int, code: str, message: str, **extra: Any) -> JSONResponse:
@@ -54,7 +53,7 @@ def sort_value(packet: dict[str, Any]) -> str:
     value = packet["measured_at"]
     if packet["time_sync_status"] == "monotonic":
         return f"{value:020d}"
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def packet_key(packet: dict[str, Any]) -> dict[str, Any]:
@@ -75,7 +74,7 @@ def decode_cursor(cursor: str | None) -> tuple[str, str, int] | None:
         if not isinstance(value, str) or not isinstance(boot_id, str) or not isinstance(sequence, int):
             raise ValueError
         return value, boot_id, sequence
-    except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
+    except (TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError("Invalid page cursor.") from error
 
 
@@ -83,14 +82,15 @@ def row_response(row: sqlite3.Row, fresh_after_seconds: int) -> dict[str, Any]:
     packet = json.loads(row["payload_json"])
     freshness: dict[str, Any] = {"status": "unknown"}
     if packet["time_sync_status"] == "synced":
-        age = max(0, (datetime.now(timezone.utc) - datetime.fromisoformat(packet["measured_at"].replace("Z", "+00:00"))).total_seconds())
-        freshness = {"status": "fresh" if age <= fresh_after_seconds else "stale", "age_seconds": int(age)}
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(packet["measured_at"].replace("Z", "+00:00"))).total_seconds()
+        if age >= 0:
+            freshness = {"status": "fresh" if age <= fresh_after_seconds else "stale", "age_seconds": int(age)}
     return {"packet": packet, "measurement_time": packet["measured_at"], "received_at": row["received_at"], "freshness": freshness}
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     actual_settings = settings or load_settings()
-    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    schema = json.loads(files("noise_monitor_contract").joinpath("schemas/telemetry_v1.json").read_text(encoding="utf-8"))
     validator = Draft7Validator(schema, format_checker=FormatChecker())
 
     @asynccontextmanager
@@ -119,8 +119,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/v1/telemetry")
     async def ingest(request: Request, x_device_key: str | None = Header(default=None)):
         try:
-            packet = await request.json()
-        except json.JSONDecodeError:
+            body = bytearray()
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > MAX_BODY_BYTES:
+                    return error(413, "payload_too_large", "Telemetry body exceeds 65536 bytes.")
+                body.extend(chunk)
+            packet = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError):
             return error(400, "validation_error", "Telemetry payload validation failed.", fields=[{"path": "", "code": "malformed_json", "message": "Request body must be valid JSON."}])
         fields = validate_packet(packet, validator)
         if fields:
@@ -151,7 +156,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             else:
                 for value in (from_at, to_at):
                     if value is not None:
-                        datetime.fromisoformat(value.replace("Z", "+00:00"))
+                        if not FormatChecker().conforms(value, "date-time"):
+                            raise ValueError
+                        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                        if parsed.utcoffset() is None:
+                            raise ValueError
         except ValueError:
             return error(400, "invalid_time_range", "Use non-negative milliseconds for monotonic data and RFC 3339 otherwise.")
         return None

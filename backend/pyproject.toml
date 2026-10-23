@@ -19,8 +19,12 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
-[tool.setuptools.packages.find]
-include = ["noise_monitor*"]
+[tool.setuptools]
+packages = ["noise_monitor", "noise_monitor_contract"]
+package-dir = {noise_monitor = "noise_monitor", noise_monitor_contract = "../shared"}
+
+[tool.setuptools.package-data]
+noise_monitor_contract = ["schemas/*.json"]
 
 [tool.ruff]
 line-length = 100

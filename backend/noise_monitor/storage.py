@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -26,4 +27,26 @@ def connect(path: Path) -> sqlite3.Connection:
     connection = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
     connection.row_factory = sqlite3.Row
     connection.executescript(SCHEMA)
+    # Upgrade legacy variable-width timestamp keys atomically, preserving payloads.
+    if connection.execute("PRAGMA user_version").fetchone()[0] < 1:
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                "SELECT device_id, boot_id, sequence, measurement_sort_value FROM packets "
+                "WHERE time_sync_status != 'monotonic'"
+            ).fetchall()
+            for row in rows:
+                value = datetime.fromisoformat(row["measurement_sort_value"].replace("Z", "+00:00"))
+                normalized = value.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+                connection.execute(
+                    "UPDATE packets SET measurement_sort_value=? "
+                    "WHERE device_id=? AND boot_id=? AND sequence=?",
+                    (normalized, row["device_id"], row["boot_id"], row["sequence"]),
+                )
+            connection.execute("PRAGMA user_version = 1")
+            connection.execute("COMMIT")
+        except Exception:
+            connection.execute("ROLLBACK")
+            connection.close()
+            raise
     return connection
