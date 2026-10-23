@@ -4,7 +4,7 @@
 #include <WiFi.h>
 #include <esp_system.h>
 #include <esp_timer.h>
-#include "features.h"
+#include "noise_features.h"
 #if __has_include("config.local.h")
 #include "config.local.h"
 #else

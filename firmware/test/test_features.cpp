@@ -1,7 +1,7 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
-#include "features.h"
+#include "noise_features.h"
 
 int main() {
   noise::Second second;
