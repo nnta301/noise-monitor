@@ -34,15 +34,18 @@ The simulator supports development; hardware acceptance must use a real device.
 
 ### Results
 
-Producer implementation for #3 and #5 is available locally: fixture-based
-simulator, initial ESP32 firmware, host tests, and producer CI. See
-[validation notes](../validation-sprint-01.md) for remaining acceptance evidence.
+Producer implementation for #3 and #5 is available in PR #15: fixture-based
+simulator, initial ESP32 firmware, host tests, firmware serializer/acknowledgement tests, a read-only SQLite
+persistence verifier, and producer CI. See
+[validation notes](../validation-sprint-01.md) and the
+[acceptance procedure](../producer-acceptance.md) for remaining evidence.
 
 ### Blockers
 
 The actual hardware must be confirmed before selecting the final board target,
-flashing, and accepting #3. Real API upload and persistence evidence requires
-the backend from #4; simulator and host tests do not replace this evidence.
+flashing, and accepting #3. Automated producer/API integration now uses the backend from #4 and a temporary
+SQLite database, including real HTTP resends and packet counts. Physical-device
+upload, microphone response, and network-fault sampling evidence remain pending.
 
 ### Scope changes
 

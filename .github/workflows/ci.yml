@@ -113,10 +113,10 @@ jobs:
           python-version: '3.10'
 
       - name: Install producer tooling
-        run: python -m pip install -r scripts/requirements-dev.txt
+        run: python -m pip install -r scripts/requirements-dev.txt -e backend
 
       - name: Lint simulator
-        run: ruff check scripts/simulate_telemetry.py scripts/tests
+        run: ruff check scripts/simulate_telemetry.py scripts/check_firmware_contract.py scripts/verify_api_ingestion.py scripts/tests scripts/integration_tests
 
       - name: Test simulator with temporary local HTTP stub
         run: python -m unittest discover -s scripts/tests -v
@@ -127,4 +127,13 @@ jobs:
           "$RUNNER_TEMP/noise-features-test"
 
       - name: Compile sanitized ESP32 example
-        run: pio run -d firmware -e esp32dev_example
+        run: pio run -d firmware -e esp32dev_example -e esp32dev_sampling_compile
+
+      - name: Validate firmware-generated telemetry and acknowledgements
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/include -Ifirmware/.pio/libdeps/esp32dev_example/ArduinoJson/src firmware/test/test_telemetry.cpp -o "$RUNNER_TEMP/noise-telemetry-test"
+          "$RUNNER_TEMP/noise-telemetry-test" > "$RUNNER_TEMP/noise-telemetry.jsonl"
+          python scripts/check_firmware_contract.py < "$RUNNER_TEMP/noise-telemetry.jsonl"
+
+      - name: Test producers against project API and temporary SQLite
+        run: NOISE_FIRMWARE_TEST_PACKETS="$RUNNER_TEMP/noise-telemetry.jsonl" python -m unittest discover -s scripts/integration_tests -v

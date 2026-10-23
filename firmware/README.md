@@ -22,8 +22,9 @@ Edit the ignored local header for Wi-Fi, endpoint, optional device key,
 timezone, ADC pin, clipping limits, and sample period. Only enable
 `NOISE_HARDWARE_CONFIRMED` after recording the actual hardware. Without it,
 the example compiles but does not sample. Dependencies are pinned in
-`platformio.ini`. The optional key uses `X-Device-Key`; confirm this with the
-API owner because authentication is not specified by contract v1.
+`platformio.ini`. The backend requires `X-Device-Key` to match this device's configured identity.
+Configure the key locally and register the Wi-Fi MAC device ID with the backend
+using `NOISE_MONITOR_DEVICE_KEYS_JSON`; never commit either real configuration.
 
 For a confirmed compatible board, build, flash, and monitor (replace the port):
 
@@ -71,3 +72,37 @@ hardware. Real acceptance of #3 still requires confirmed hardware settings,
 quiet/reference-source feature logs, sampling during network failures, a real
 API HTTP 202, and the received packet validated against the shared contract.
 Record evidence in [validation notes](../docs/validation-sprint-01.md).
+
+## Firmware contract and active-path builds
+
+Build both sanitized environments without local credentials:
+
+```shell
+.venv/bin/pio run -d firmware -e esp32dev_example -e esp32dev_sampling_compile
+```
+
+`esp32dev_sampling_compile` enables the sampling/upload path with empty example
+credentials so CI also links the active application. It is a compile check only;
+do not flash this environment. Real devices still require confirmed hardware
+and local configuration.
+
+The device requires HTTP 202 plus a valid `accepted`/`duplicate` acknowledgement
+matching its device, boot, and sequence identity. Diagnostics include
+`acknowledged=true` only for that response; a 202 status alone is insufficient.
+Responses are parsed with a bounded JSON document and normal network timeouts.
+
+After PlatformIO has installed the pinned ArduinoJson dependency, test the same
+serializer and acknowledgement validator used by the ESP32:
+
+```shell
+c++ -std=c++17 -Wall -Wextra -Werror -Ifirmware/include -Ifirmware/.pio/libdeps/esp32dev_example/ArduinoJson/src firmware/test/test_telemetry.cpp -o /tmp/noise-telemetry-test
+/tmp/noise-telemetry-test > /tmp/noise-telemetry.jsonl
+.venv/bin/python scripts/check_firmware_contract.py < /tmp/noise-telemetry.jsonl
+```
+
+The two synthetic packets exercise all quality flags, null missing features,
+64-bit measurement time and sequence values, and ten-second batch progression.
+The Python check applies the shared telemetry schema and semantic validation to
+the C++ output. Host assertions reject malformed/mismatched acknowledgements.
+See [producer acceptance](../docs/producer-acceptance.md) for the remaining
+real-hardware and actual-API observations.
