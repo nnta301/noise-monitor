@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import timezone
+import json
 from pathlib import Path
 
-from .timestamps import parse_rfc3339
+from .timestamps import timestamp_sort_key
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS packets (
@@ -29,22 +29,21 @@ def connect(path: Path) -> sqlite3.Connection:
     connection.row_factory = sqlite3.Row
     connection.executescript(SCHEMA)
     # Upgrade legacy variable-width timestamp keys atomically, preserving payloads.
-    if connection.execute("PRAGMA user_version").fetchone()[0] < 1:
+    if connection.execute("PRAGMA user_version").fetchone()[0] < 2:
         try:
             connection.execute("BEGIN IMMEDIATE")
             rows = connection.execute(
-                "SELECT device_id, boot_id, sequence, measurement_sort_value FROM packets "
+                "SELECT device_id, boot_id, sequence, payload_json FROM packets "
                 "WHERE time_sync_status != 'monotonic'"
             ).fetchall()
             for row in rows:
-                value = parse_rfc3339(row["measurement_sort_value"])
-                normalized = value.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+                normalized = timestamp_sort_key(json.loads(row["payload_json"])["measured_at"])
                 connection.execute(
                     "UPDATE packets SET measurement_sort_value=? "
                     "WHERE device_id=? AND boot_id=? AND sequence=?",
                     (normalized, row["device_id"], row["boot_id"], row["sequence"]),
                 )
-            connection.execute("PRAGMA user_version = 1")
+            connection.execute("PRAGMA user_version = 2")
             connection.execute("COMMIT")
         except Exception:
             connection.execute("ROLLBACK")
