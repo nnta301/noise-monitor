@@ -15,6 +15,7 @@ build/
 .pio/
 .pioenvs/
 .piolibdeps/
+firmware/include/config.local.h
 
 # Runtime data and logs
 *.db

@@ -38,6 +38,13 @@ physical hardware are required.
 A green baseline does not mean the application has been built, tested,
 or verified on hardware.
 
+The `Simulator and firmware` job additionally installs
+`scripts/requirements-dev.txt`, lints and tests the simulator against a local
+HTTP stub, runs host C++ feature tests, and compiles the provisional
+`esp32dev_example` target using sanitized configuration. See `scripts/README.md`
+and `firmware/README.md` for matching local commands. This compilation target
+does not confirm the installed board or establish hardware/API acceptance.
+
 ### Local checks
 
 Install Git and actionlint 1.7.12 from its official release:

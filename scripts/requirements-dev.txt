@@ -1,0 +1,4 @@
+jsonschema[format]==4.26.0
+tzdata==2026.5
+ruff==0.14.1
+platformio==6.1.18

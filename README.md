@@ -2,7 +2,9 @@
 
 Noise Monitor is an IoT project for monitoring noise in a sleep environment. The planned system measures signals using an ESP32 and microphone, processes them locally, and sends numeric features to a server; it does not record or transmit raw audio.
 
-**Status:** project foundations are being prepared; no features have been implemented.
+**Status:** shared contracts, a synthetic telemetry simulator, and initial ESP32
+firmware are implemented. Hardware confirmation and real device/API validation
+are pending; backend and dashboard implementations remain planned.
 
 ## Planned goals
 
