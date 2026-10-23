@@ -32,17 +32,22 @@ def connect(path: Path) -> sqlite3.Connection:
     if connection.execute("PRAGMA user_version").fetchone()[0] < 2:
         try:
             connection.execute("BEGIN IMMEDIATE")
-            rows = connection.execute(
-                "SELECT device_id, boot_id, sequence, payload_json FROM packets "
-                "WHERE time_sync_status != 'monotonic'"
-            ).fetchall()
-            for row in rows:
-                normalized = timestamp_sort_key(json.loads(row["payload_json"])["measured_at"])
-                connection.execute(
-                    "UPDATE packets SET measurement_sort_value=? "
-                    "WHERE device_id=? AND boot_id=? AND sequence=?",
-                    (normalized, row["device_id"], row["boot_id"], row["sequence"]),
-                )
+            last_rowid = 0
+            while True:
+                rows = connection.execute(
+                    "SELECT rowid AS migration_id, payload_json FROM packets "
+                    "WHERE rowid > ? AND time_sync_status != 'monotonic' "
+                    "ORDER BY rowid LIMIT 128", (last_rowid,),
+                ).fetchall()
+                if not rows:
+                    break
+                for row in rows:
+                    normalized = timestamp_sort_key(json.loads(row["payload_json"])["measured_at"])
+                    connection.execute(
+                        "UPDATE packets SET measurement_sort_value=? WHERE rowid=?",
+                        (normalized, row["migration_id"]),
+                    )
+                last_rowid = rows[-1]["migration_id"]
             connection.execute("PRAGMA user_version = 2")
             connection.execute("COMMIT")
         except Exception:
