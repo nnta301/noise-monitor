@@ -34,11 +34,15 @@ The simulator supports development; hardware acceptance must use a real device.
 
 ### Results
 
-None yet — this iteration prepared only the foundational documentation.
+Producer implementation for #3 and #5 is available locally: fixture-based
+simulator, initial ESP32 firmware, host tests, and producer CI. See
+[validation notes](../validation-sprint-01.md) for remaining acceptance evidence.
 
 ### Blockers
 
-None recorded. The actual hardware must be confirmed before implementing device firmware.
+The actual hardware must be confirmed before selecting the final board target,
+flashing, and accepting #3. Real API upload and persistence evidence requires
+the backend from #4; simulator and host tests do not replace this evidence.
 
 ### Scope changes
 

@@ -16,6 +16,15 @@
 
 There is no universal wiring diagram for every ESP32 variant; a diagram will be produced only after the specific hardware is confirmed.
 
+## Firmware example (unconfirmed hardware)
+
+The provisional `esp32dev_example` compile target assumes a classic dual-core
+ESP32, 12-bit ADC1 GPIO34, `ADC_11db`, best-effort 500 Hz sampling, 50 ms P2P
+windows, and rail clipping limits 0/4095. These are sanitized development
+defaults, not measured settings. Gain and supply remain unconfirmed. Check
+board-specific ADC voltage compatibility before wiring/enabling sampling.
+Follow [firmware instructions](../firmware/README.md) for local configuration.
+
 ## Configuration to record
 
 Record the board/microphone versions, pins, firmware, sampling rate, gain, P2P calculation, alert threshold, and test-environment conditions. Do not commit real Wi-Fi SSIDs or passwords to Git.
