@@ -8,7 +8,10 @@ Use Python 3.10 or later from the repository root:
 
 ```shell
 python -m venv .venv
-.venv\Scripts\activate
+# POSIX shells:
+. .venv/bin/activate
+# Windows PowerShell (use instead of the POSIX command):
+.venv\Scripts\Activate.ps1
 python -m pip install -e "backend[dev]"
 ```
 
@@ -42,6 +45,15 @@ curl http://127.0.0.1:8000/api/v1/devices/esp32-bedroom-01/latest -H "X-Read-Key
 ```
 
 A new packet returns `202`/`accepted`; an identical retry is `202`/`duplicate`; a changed payload with the same packet key is `409`/`idempotency_conflict`. Malformed and invalid bodies use the shared `400` validation envelope rather than FastAPI's default `422`.
+
+Telemetry bodies are limited to 65,536 bytes, including streamed bodies without a
+Content-Length header. Larger requests receive `413`/`payload_too_large`.
+Future synced measurement timestamps have freshness `unknown`.
+Timestamp range parameters require full RFC 3339 date-times with explicit offsets.
+SQLite startup migrates legacy timestamp sort keys to fixed microsecond precision
+in a transaction; packet contents and receipt times are preserved.
+The wheel includes the authoritative schemas directly from `shared/`, so regular
+installations do not need the repository tree at runtime.
 
 ## Query semantics and storage
 

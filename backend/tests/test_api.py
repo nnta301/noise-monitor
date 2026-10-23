@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -126,3 +127,67 @@ def test_rejects_ambiguous_read_key_configuration():
         assert "unique" in str(error)
     else:
         raise AssertionError("Expected ambiguous reader keys to be rejected")
+
+
+@pytest.mark.parametrize("value", ["bnVsbA", "MQ", "e30", "W10"])
+def test_invalid_cursor_returns_client_error(tmp_path, value):
+    with client(tmp_path) as api:
+        response = api.get(
+            "/api/v1/devices/esp32-bedroom-01/history",
+            params={"cursor": value}, headers={"X-Read-Key": "read-a"},
+        )
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "invalid_page_cursor"
+
+
+@pytest.mark.parametrize("value", ["2026-10-19", "2026-10-19T22:00:00"])
+def test_naive_range_rejected(tmp_path, value):
+    with client(tmp_path) as api:
+        for field in ("from_at", "to_at"):
+            response = api.get(
+                "/api/v1/devices/esp32-bedroom-01/history",
+                params={field: value}, headers={"X-Read-Key": "read-a"},
+            )
+            assert response.status_code == 400
+
+
+def test_invalid_encoding_and_stream_size_limit(tmp_path):
+    with client(tmp_path) as api:
+        assert api.post("/api/v1/telemetry", content=b'"\xff"').status_code == 400
+        for headers in ({}, {"Content-Length": "1"}):
+            response = api.post(
+                "/api/v1/telemetry", content=iter([b" " * 40000, b" " * 40000]),
+                headers=headers,
+            )
+            assert response.status_code == 413
+            assert response.json()["error"]["code"] == "payload_too_large"
+
+
+def test_future_synced_measurement_has_unknown_freshness(tmp_path):
+    with client(tmp_path) as api:
+        assert post(api, {**packet(), "measured_at": "2099-01-01T00:00:00Z"}).status_code == 202
+        response = api.get("/api/v1/devices/esp32-bedroom-01/latest", headers={"X-Read-Key": "read-a"})
+        assert response.json()["freshness"] == {"status": "unknown"}
+
+
+def test_fractional_order_ranges_pagination_and_legacy_migration(tmp_path):
+    with client(tmp_path) as api:
+        for sequence, measured_at in enumerate([
+            "2026-10-19T22:00:00Z", "2026-10-19T22:00:00.500000Z"
+        ]):
+            assert post(api, {**packet(), "sequence": sequence, "measured_at": measured_at}).status_code == 202
+    db = sqlite3.connect(tmp_path / "telemetry.sqlite3")
+    db.execute("UPDATE packets SET measurement_sort_value='2026-10-19T22:00:00Z' WHERE sequence=0")
+    db.execute("PRAGMA user_version=0")
+    db.commit()
+    db.close()
+    with client(tmp_path) as api:
+        url = "/api/v1/devices/esp32-bedroom-01/"
+        headers = {"X-Read-Key": "read-a"}
+        assert api.get(url + "latest", headers=headers).json()["packet"]["sequence"] == 1
+        page = api.get(url + "history", params={"page_size": 1}, headers=headers).json()
+        assert page["items"][0]["packet"]["sequence"] == 1
+        second = api.get(url + "history", params={"cursor": page["next_cursor"]}, headers=headers).json()
+        assert second["items"][0]["packet"]["sequence"] == 0
+        bounded = api.get(url + "history", params={"to_at": "2026-10-19T22:00:00Z"}, headers=headers).json()
+        assert [item["packet"]["sequence"] for item in bounded["items"]] == [0]
