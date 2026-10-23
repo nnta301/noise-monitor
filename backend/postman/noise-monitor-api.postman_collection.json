@@ -1,0 +1,25 @@
+{
+  "info": {
+    "name": "Noise Monitor API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "base_url", "value": "http://127.0.0.1:8000"},
+    {"key": "device_id", "value": "esp32-bedroom-01"},
+    {"key": "device_key", "value": "SET_LOCALLY"},
+    {"key": "read_key", "value": "SET_LOCALLY"}
+  ],
+  "item": [
+    {
+      "name": "Ingest synthetic telemetry",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}, {"key": "X-Device-Key", "value": "{{device_key}}"}],
+        "url": "{{base_url}}/api/v1/telemetry",
+        "body": {"mode": "raw", "raw": "{\n  \"schema_version\": \"v1\",\n  \"device_id\": \"{{device_id}}\",\n  \"boot_id\": \"123e4567-e89b-12d3-a456-426614174000\",\n  \"sequence\": 1,\n  \"measured_at\": \"2026-10-19T22:00:00Z\",\n  \"timezone\": \"Asia/Ho_Chi_Minh\",\n  \"time_sync_status\": \"synced\",\n  \"median_p2p\": [40,42,41,40,43,41,40,42,40,41],\n  \"peak_p2p\": [45,48,46,45,50,47,45,48,44,46],\n  \"quality_flags\": [\"ok\",\"ok\",\"ok\",\"ok\",\"ok\",\"ok\",\"ok\",\"ok\",\"ok\",\"ok\"]\n}"}
+      }
+    },
+    {"name": "Latest synced measurement", "request": {"method": "GET", "header": [{"key": "X-Read-Key", "value": "{{read_key}}"}], "url": "{{base_url}}/api/v1/devices/{{device_id}}/latest"}},
+    {"name": "Synced history", "request": {"method": "GET", "header": [{"key": "X-Read-Key", "value": "{{read_key}}"}], "url": "{{base_url}}/api/v1/devices/{{device_id}}/history?page_size=50"}}
+  ]
+}
