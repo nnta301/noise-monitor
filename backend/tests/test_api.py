@@ -190,6 +190,15 @@ def test_invalid_encoding_and_stream_size_limit(tmp_path):
             assert response.json()["error"]["code"] == "payload_too_large"
 
 
+@pytest.mark.parametrize("body", [b"[" * 20000 + b"0" + b"]" * 20000, b"1" * 5006], ids=["deep-json", "huge-integer"])
+def test_json_parser_limits_return_validation_envelope(tmp_path, body):
+    with client(tmp_path) as api:
+        response = api.post("/api/v1/telemetry", content=body)
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "validation_error"
+        assert response.json()["error"]["fields"]
+
+
 def test_future_synced_measurement_has_unknown_freshness(tmp_path):
     with client(tmp_path) as api:
         assert post(api, {**packet(), "measured_at": "2099-01-01T00:00:00Z"}).status_code == 202
