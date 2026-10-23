@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import timezone
 from pathlib import Path
 
+from .timestamps import parse_rfc3339
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS packets (
@@ -36,7 +37,7 @@ def connect(path: Path) -> sqlite3.Connection:
                 "WHERE time_sync_status != 'monotonic'"
             ).fetchall()
             for row in rows:
-                value = datetime.fromisoformat(row["measurement_sort_value"].replace("Z", "+00:00"))
+                value = parse_rfc3339(row["measurement_sort_value"])
                 normalized = value.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
                 connection.execute(
                     "UPDATE packets SET measurement_sort_value=? "

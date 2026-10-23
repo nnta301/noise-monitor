@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .config import Reader, Settings, load_settings
 from .storage import connect
+from .timestamps import parse_rfc3339
 
 MAX_BODY_BYTES = 64 * 1024
 
@@ -53,7 +54,7 @@ def sort_value(packet: dict[str, Any]) -> str:
     value = packet["measured_at"]
     if packet["time_sync_status"] == "monotonic":
         return f"{value:020d}"
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    return parse_rfc3339(value).astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def packet_key(packet: dict[str, Any]) -> dict[str, Any]:
@@ -82,7 +83,7 @@ def row_response(row: sqlite3.Row, fresh_after_seconds: int) -> dict[str, Any]:
     packet = json.loads(row["payload_json"])
     freshness: dict[str, Any] = {"status": "unknown"}
     if packet["time_sync_status"] == "synced":
-        age = (datetime.now(timezone.utc) - datetime.fromisoformat(packet["measured_at"].replace("Z", "+00:00"))).total_seconds()
+        age = (datetime.now(timezone.utc) - parse_rfc3339(packet["measured_at"])).total_seconds()
         if age >= 0:
             freshness = {"status": "fresh" if age <= fresh_after_seconds else "stale", "age_seconds": int(age)}
     return {"packet": packet, "measurement_time": packet["measured_at"], "received_at": row["received_at"], "freshness": freshness}
@@ -158,7 +159,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     if value is not None:
                         if not FormatChecker().conforms(value, "date-time"):
                             raise ValueError
-                        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                        parsed = parse_rfc3339(value)
                         if parsed.utcoffset() is None:
                             raise ValueError
         except ValueError:
