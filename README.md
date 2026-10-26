@@ -41,3 +41,9 @@ docs/       requirements, architecture, hardware, workflow, and sprints
 - [Roadmap](docs/sprints/README.md) and [Sprint 1](docs/sprints/sprint-01.md)
 
 Current sprint: **Sprint 1 — Planning**.
+
+## Dashboard Setup
+The frontend is a React + TypeScript application. To run it locally:
+1. `cd dashboard`
+2. `npm install`
+3. `npm run dev`
