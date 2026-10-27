@@ -19,14 +19,31 @@ const MOCK_FIXTURE: TelemetryPayload = {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 const DEVICE_ID = import.meta.env.VITE_DEVICE_ID || 'esp32-sleep-monitor-01';
-const READ_KEY = import.meta.env.VITE_READ_KEY || 'read-key-123';
+const READ_KEY = import.meta.env.VITE_READ_KEY || '';
 
 export function App() {
-  const [data, setData] = useState<TelemetryPayload | null>(MOCK_FIXTURE);
+  const [data, setData] = useState<TelemetryPayload | null>(null);
+  const [historyPackets, setHistoryPackets] = useState<TelemetryPayload[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isStale, setIsStale] = useState<boolean>(false);
   const [isLiveApi, setIsLiveApi] = useState<boolean>(false);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  // Hàm fetch lịch sử 15 phút khi mới mở trang
+  const fetchHistory = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/devices/${DEVICE_ID}/history`, {
+        headers: { 'X-Read-Key': READ_KEY },
+      });
+      if (response.ok) {
+        const result = await response.json();
+        const packets = Array.isArray(result) ? result : (result.items || result.packets || []);
+        setHistoryPackets(packets.slice(-90));
+      }
+    } catch (err) {
+      console.error("Failed to load history", err);
+    }
+  };
 
   // Hàm fetch dữ liệu từ Backend API
   const fetchLatestTelemetry = async () => {
@@ -38,38 +55,75 @@ export function App() {
       });
 
       if (!response.ok) {
+        // Nếu trả về 404 nghĩa là API vẫn sống, chỉ là thiết bị chưa có dữ liệu.
+        if (response.status === 404) {
+          setData(null);
+          setIsLiveApi(true);
+          setIsStale(true);
+          setApiError(null);
+          return;
+        }
+
         throw new Error(`API Error: ${response.status}`);
       }
+
       const result = await response.json();
 
       if (result.packet) {
         setData(result.packet);
-        setLastUpdated(new Date());
+        if (result.packet.measured_at) {
+          setLastUpdated(new Date(result.packet.measured_at));
+        }
 
         const isDataStale = result.freshness ? result.freshness.status !== 'fresh' : false;
         setIsStale(isDataStale);
 
         setIsLiveApi(true);
         setApiError(null);
+
+        // Đẩy gói dữ liệu mới vào biểu đồ một cách an toàn
+        setHistoryPackets(prev => {
+          if (prev.some(p => p.sequence === result.packet.sequence)) return prev;
+          return [...prev, result.packet].slice(-90);
+        });
       }
     } catch (err) {
       // Khi không kết nối được API thật, giữ lại trạng thái cũ và báo Stale/Offline
       setIsLiveApi(false);
       setApiError(err instanceof Error ? err.message : 'Failed to connect to backend API');
+
+      if (typeof MOCK_FIXTURE !== 'undefined') {
+        setData(MOCK_FIXTURE);
+        setHistoryPackets([MOCK_FIXTURE]);
+      }
+      setIsStale(true);
     }
   };
 
   // Tự động làm mới mỗi 5 giây
   useEffect(() => {
-    setTimeout(() => {
-      fetchLatestTelemetry();
-    }, 0);
+    let isCancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
 
-    const interval = setInterval(() => {
-      fetchLatestTelemetry();
-    }, 5000);
+    const startPolling = async () => {
+      await fetchHistory(); // Lấy lịch sử lần đầu tiên
 
-    return () => clearInterval(interval);
+      const poll = async () => {
+        if (isCancelled) return;
+        await fetchLatestTelemetry();
+        // Chờ request trước xong hoàn toàn mới đếm 5s tiếp theo
+        timer = setTimeout(poll, 5000);
+      };
+
+      poll();
+    };
+
+    startPolling();
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
   }, []);
 
   // Kiểm tra stale (> 30s không nhận số đo mới)
@@ -83,15 +137,18 @@ export function App() {
     return () => clearInterval(checkStaleInterval);
   }, [lastUpdated]);
 
-  const chartData = data ? data.median_p2p.map((val, idx) => ({
-    sampleIndex: idx + 1,
-    median: val,
-    peak: data.peak_p2p[idx] ?? null,
-    flag: data.quality_flags[idx]
-  })) : [];
+  // Gom toàn bộ mảng historyPackets thành mảng chart dài liên tục
+  const chartData = historyPackets.flatMap((packet, packetIdx) =>
+    packet.median_p2p.map((val, idx) => ({
+      sampleIndex: (packetIdx * 10) + idx + 1,
+      median: val,
+      peak: packet.peak_p2p[idx] ?? null,
+      flag: packet.quality_flags[idx]
+    }))
+  );
 
-  const latestMedian = data?.median_p2p.filter(v => v !== null).slice(-1)[0] ?? 'N/A';
-  const latestPeak = data?.peak_p2p.filter(v => v !== null).slice(-1)[0] ?? 'N/A';
+  const latestMedian = data?.median_p2p[data.median_p2p.length - 1] ?? 'N/A';
+  const latestPeak = data?.peak_p2p[data.peak_p2p.length - 1] ?? 'N/A';
 
   return (
     <div style={{ padding: '24px', fontFamily: 'sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
