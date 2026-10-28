@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Activity, AlertTriangle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import type { TelemetryPayload } from './types/telemetry';
@@ -28,27 +28,44 @@ export function App() {
   const [isStale, setIsStale] = useState<boolean>(false);
   const [isLiveApi, setIsLiveApi] = useState<boolean>(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  const fetchHistory = async () => {
+  // Token thế hệ để chống Race Condition khi có nhiều Request chạy song song
+  const requestGen = useRef<number>(0);
+  const needsHistoryRef = useRef<boolean>(true);
+
+  const fetchHistory = async (gen: number) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/devices/${DEVICE_ID}/history?t=${Date.now()}`, {
         headers: { 'X-Read-Key': READ_KEY },
         cache: 'no-store'
       });
-      if (response.ok) {
-        const result = await response.json();
-        const packets = Array.isArray(result) ? result : (result.items || result.packets || []);
-        if (packets.length > 0) {
-          setHistoryPackets(packets.slice(-90));
-        }
+
+      if (!response.ok) {
+        throw new Error(`HTTP Error ${response.status}`);
       }
+
+      const result = await response.json();
+
+      // Hủy bỏ cập nhật State nếu có một Request mới hơn đã được khởi chạy
+      if (gen !== requestGen.current) return;
+
+      const packets = Array.isArray(result) ? result : (result.items || result.packets || []);
+      if (packets.length > 0) {
+        setHistoryPackets(packets.slice(-90));
+      }
+
+      setHistoryError(null);
+      needsHistoryRef.current = false;
     } catch (err) {
-      console.error("Failed to load history", err);
+      if (gen !== requestGen.current) return;
+      setHistoryError(err instanceof Error ? err.message : 'Failed to load history');
+      needsHistoryRef.current = true;
     }
   };
 
-  const fetchLatestTelemetry = async () => {
+  const fetchLatestTelemetry = async (gen: number) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/devices/${DEVICE_ID}/latest?t=${Date.now()}`, {
         headers: { 'X-Read-Key': READ_KEY },
@@ -57,6 +74,7 @@ export function App() {
 
       if (!response.ok) {
         if (response.status === 404) {
+          if (gen !== requestGen.current) return;
           setData(null);
           setIsLiveApi(true);
           setIsStale(true);
@@ -67,8 +85,9 @@ export function App() {
       }
 
       const result = await response.json();
-      const packetData: TelemetryPayload | null =
-        result.packet || result.latest_measurement || (result.median_p2p ? result : null);
+      const packetData: TelemetryPayload | null = result.packet || result.latest_measurement || (result.median_p2p ? result : null);
+
+      if (gen !== requestGen.current) return;
 
       if (packetData) {
         setData(packetData);
@@ -96,6 +115,7 @@ export function App() {
         });
       }
     } catch (err) {
+      if (gen !== requestGen.current) return;
       setIsLiveApi(false);
       setApiError(err instanceof Error ? err.message : 'Failed to connect to backend API');
 
@@ -110,8 +130,12 @@ export function App() {
   const handleManualRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
+
+    // Tăng mã token và buộc nạp lại cả 2 API bằng cùng 1 mã token mới nhất
+    const currentGen = ++requestGen.current;
+
     try {
-      await Promise.all([fetchHistory(), fetchLatestTelemetry()]);
+      await Promise.all([fetchHistory(currentGen), fetchLatestTelemetry(currentGen)]);
     } finally {
       setTimeout(() => setIsRefreshing(false), 500);
     }
@@ -121,18 +145,21 @@ export function App() {
     let isCancelled = false;
     let timer: ReturnType<typeof setTimeout>;
 
-    const startPolling = async () => {
-      await fetchHistory();
+    const poll = async () => {
+      if (isCancelled) return;
 
-      const poll = async () => {
-        if (isCancelled) return;
-        await fetchLatestTelemetry();
-        timer = setTimeout(poll, 5000);
-      };
-      poll();
+      const currentGen = ++requestGen.current;
+
+      // Nếu lần load lịch sử trước đó bị fail, tự động retry lại trong vòng lặp polling
+      if (needsHistoryRef.current) {
+        await fetchHistory(currentGen);
+      }
+
+      await fetchLatestTelemetry(currentGen);
+      timer = setTimeout(poll, 5000);
     };
 
-    startPolling();
+    poll();
     return () => {
       isCancelled = true;
       clearTimeout(timer);
@@ -239,6 +266,13 @@ export function App() {
           </div>
         </div>
       </header>
+
+      {historyError && (
+        <div style={{ backgroundColor: '#fef2f2', borderLeft: '4px solid #ef4444', padding: '12px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <AlertTriangle color="#ef4444" />
+          <span>Failed to load signal history ({historyError}). Retrying automatically...</span>
+        </div>
+      )}
 
       {apiError && !isLiveApi && (
         <div style={{ backgroundColor: '#fff7ed', borderLeft: '4px solid #f97316', padding: '12px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
