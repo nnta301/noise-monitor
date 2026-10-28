@@ -3,7 +3,6 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianG
 import { Activity, AlertTriangle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import type { TelemetryPayload } from './types/telemetry';
 
-// Fixture dự phòng khi chưa nối được Backend
 const MOCK_FIXTURE: TelemetryPayload = {
   schema_version: 'v1',
   device_id: 'esp32-sleep-monitor-01',
@@ -24,38 +23,39 @@ const READ_KEY = import.meta.env.VITE_READ_KEY || '';
 export function App() {
   const [data, setData] = useState<TelemetryPayload | null>(null);
   const [historyPackets, setHistoryPackets] = useState<TelemetryPayload[]>([]);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [nowTime, setNowTime] = useState<number>(() => Date.now());
+  const [lastUpdated, setLastUpdated] = useState<Date>(() => new Date());
   const [isStale, setIsStale] = useState<boolean>(false);
   const [isLiveApi, setIsLiveApi] = useState<boolean>(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  // Hàm fetch lịch sử 15 phút khi mới mở trang
   const fetchHistory = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/devices/${DEVICE_ID}/history`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/devices/${DEVICE_ID}/history?t=${Date.now()}`, {
         headers: { 'X-Read-Key': READ_KEY },
+        cache: 'no-store'
       });
       if (response.ok) {
         const result = await response.json();
         const packets = Array.isArray(result) ? result : (result.items || result.packets || []);
-        setHistoryPackets(packets.slice(-90));
+        if (packets.length > 0) {
+          setHistoryPackets(packets.slice(-90));
+        }
       }
     } catch (err) {
       console.error("Failed to load history", err);
     }
   };
 
-  // Hàm fetch dữ liệu từ Backend API
   const fetchLatestTelemetry = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/devices/${DEVICE_ID}/latest`, {
-        headers: {
-          'X-Read-Key': READ_KEY,
-        },
+      const response = await fetch(`${API_BASE_URL}/api/v1/devices/${DEVICE_ID}/latest?t=${Date.now()}`, {
+        headers: { 'X-Read-Key': READ_KEY },
+        cache: 'no-store'
       });
 
       if (!response.ok) {
-        // Nếu trả về 404 nghĩa là API vẫn sống, chỉ là thiết bị chưa có dữ liệu.
         if (response.status === 404) {
           setData(null);
           setIsLiveApi(true);
@@ -63,32 +63,39 @@ export function App() {
           setApiError(null);
           return;
         }
-
         throw new Error(`API Error: ${response.status}`);
       }
 
       const result = await response.json();
+      const packetData: TelemetryPayload | null = 
+        result.packet || result.latest_measurement || (result.median_p2p ? result : null);
 
-      if (result.packet) {
-        setData(result.packet);
-        if (result.packet.measured_at) {
-          setLastUpdated(new Date(result.packet.measured_at));
+      if (packetData) {
+        setData(packetData);
+        if (packetData.measured_at) {
+          setLastUpdated(new Date(packetData.measured_at));
         }
 
         const isDataStale = result.freshness ? result.freshness.status !== 'fresh' : false;
         setIsStale(isDataStale);
-
         setIsLiveApi(true);
         setApiError(null);
 
-        // Đẩy gói dữ liệu mới vào biểu đồ một cách an toàn
         setHistoryPackets(prev => {
-          if (prev.some(p => p.sequence === result.packet.sequence)) return prev;
-          return [...prev, result.packet].slice(-90);
+          const rawPacket = packetData as unknown as { seq?: number; sequence?: number };
+          const newSeq = rawPacket.seq ?? packetData.sequence;
+          const newBootId = packetData.boot_id;
+          
+          if (newSeq !== undefined && prev.some(p => {
+            const itemSeq = (p as unknown as { seq?: number; sequence?: number }).seq ?? p.sequence;
+            return itemSeq === newSeq && p.boot_id === newBootId;
+          })) {
+            return prev;
+          }
+          return [...prev, packetData].slice(-90);
         });
       }
     } catch (err) {
-      // Khi không kết nối được API thật, giữ lại trạng thái cũ và báo Stale/Offline
       setIsLiveApi(false);
       setApiError(err instanceof Error ? err.message : 'Failed to connect to backend API');
 
@@ -100,55 +107,113 @@ export function App() {
     }
   };
 
-  // Tự động làm mới mỗi 5 giây
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([fetchHistory(), fetchLatestTelemetry()]);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
+
   useEffect(() => {
     let isCancelled = false;
     let timer: ReturnType<typeof setTimeout>;
 
     const startPolling = async () => {
-      await fetchHistory(); // Lấy lịch sử lần đầu tiên
+      await fetchHistory();
 
       const poll = async () => {
         if (isCancelled) return;
         await fetchLatestTelemetry();
-        // Chờ request trước xong hoàn toàn mới đếm 5s tiếp theo
         timer = setTimeout(poll, 5000);
       };
-
       poll();
     };
 
     startPolling();
-
     return () => {
       isCancelled = true;
       clearTimeout(timer);
     };
   }, []);
 
-  // Kiểm tra stale (> 30s không nhận số đo mới)
   useEffect(() => {
     const checkStaleInterval = setInterval(() => {
+      setNowTime(Date.now());
       const secondsPassed = (new Date().getTime() - lastUpdated.getTime()) / 1000;
-      if (secondsPassed > 30) {
-        setIsStale(true);
-      }
+      setIsStale(secondsPassed > 30);
     }, 1000);
     return () => clearInterval(checkStaleInterval);
   }, [lastUpdated]);
 
-  // Gom toàn bộ mảng historyPackets thành mảng chart dài liên tục
-  const chartData = historyPackets.flatMap((packet, packetIdx) =>
-    packet.median_p2p.map((val, idx) => ({
-      sampleIndex: (packetIdx * 10) + idx + 1,
-      median: val,
-      peak: packet.peak_p2p[idx] ?? null,
-      flag: packet.quality_flags[idx]
-    }))
-  );
+  const MAX_SAMPLES = 900;
+  
+  const getLatestSampleTime = (packets: TelemetryPayload[], fallbackTimeMs: number) => {
+    if (packets.length === 0) return fallbackTimeMs;
+    const last = packets[packets.length - 1];
+    return last.measured_at ? new Date(last.measured_at).getTime() : fallbackTimeMs;
+  };
 
-  const latestMedian = data?.median_p2p[data.median_p2p.length - 1] ?? 'N/A';
-  const latestPeak = data?.peak_p2p[data.peak_p2p.length - 1] ?? 'N/A';
+  const latestSampleTimeMs = getLatestSampleTime(historyPackets, nowTime);
+  const referenceTimeMs = isStale ? nowTime : latestSampleTimeMs;
+
+  const chartData = Array.from({ length: MAX_SAMPLES }, (_, i) => ({
+    sampleIndex: i,
+    median: null as number | null,
+    peak: null as number | null,
+    flag: 'none'
+  }));
+
+  historyPackets.forEach((packet) => {
+    if (!packet.measured_at) return;
+    const packetTimeMs = new Date(packet.measured_at).getTime();
+    const sampleCount = packet.median_p2p?.length || 10;
+
+    (packet.median_p2p || []).forEach((val, idx) => {
+      const sampleTimeMs = packetTimeMs - (sampleCount - 1 - idx) * 1000;
+      const ageInSeconds = Math.floor((referenceTimeMs - sampleTimeMs) / 1000);
+      const targetIndex = (MAX_SAMPLES - 1) - ageInSeconds;
+
+      if (targetIndex >= 0 && targetIndex < MAX_SAMPLES) {
+        chartData[targetIndex] = {
+          sampleIndex: targetIndex,
+          median: val,
+          peak: packet.peak_p2p?.[idx] ?? null,
+          flag: packet.quality_flags?.[idx] ?? 'ok'
+        };
+      }
+    });
+  });
+
+  const getLatestKPIs = (packets: TelemetryPayload[]) => {
+    if (isStale || packets.length === 0) return { median: 'N/A', peak: 'N/A' };
+    
+    const lastPacket = packets[packets.length - 1];
+    
+    let medianVal: string | number = 'N/A';
+    if (lastPacket.median_p2p) {
+      for (let i = lastPacket.median_p2p.length - 1; i >= 0; i--) {
+        if (lastPacket.median_p2p[i] !== null && lastPacket.median_p2p[i] !== undefined) {
+          medianVal = lastPacket.median_p2p[i]!;
+          break;
+        }
+      }
+    }
+
+    let peakVal: string | number = 'N/A';
+    if (lastPacket.peak_p2p) {
+      const validPeaks = lastPacket.peak_p2p.filter((v): v is number => v !== null && v !== undefined);
+      if (validPeaks.length > 0) {
+        peakVal = Math.max(...validPeaks);
+      }
+    }
+
+    return { median: medianVal, peak: peakVal };
+  };
+
+  const { median: latestMedian, peak: latestPeak } = getLatestKPIs(historyPackets);
 
   return (
     <div style={{ padding: '24px', fontFamily: 'sans-serif', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
@@ -215,22 +280,68 @@ export function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <h3 style={{ margin: 0 }}>Signal History (Relative ADC Units)</h3>
           <button
-            onClick={fetchLatestTelemetry}
-            style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', cursor: 'pointer', border: '1px solid #cbd5e1', borderRadius: '6px', backgroundColor: '#fff' }}
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px', 
+              padding: '6px 12px', 
+              cursor: isRefreshing ? 'not-allowed' : 'pointer', 
+              border: '1px solid #cbd5e1', 
+              borderRadius: '6px', 
+              backgroundColor: '#fff',
+              opacity: isRefreshing ? 0.7 : 1,
+              transition: 'all 0.2s ease'
+            }}
           >
-            <RefreshCw size={14} /> Refresh Now
+            <RefreshCw 
+              size={14} 
+              style={{ 
+                transition: 'transform 0.5s ease',
+                transform: isRefreshing ? 'rotate(360deg)' : 'none' 
+              }} 
+            />
+            {isRefreshing ? 'Refreshing...' : 'Refresh Now'}
           </button>
         </div>
 
-        <div style={{ width: '100%', height: '320px' }}>
+        <div style={{ width: '100%', height: '420px' }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 30, left: 20, bottom: 25 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="sampleIndex" label={{ value: 'Sample Window', position: 'insideBottom', offset: -15 }} />
-              <YAxis label={{ value: 'Relative ADC', angle: -90, position: 'insideLeft', offset: -8 }} />
-              <Tooltip />
-              <Line type="monotone" dataKey="median" stroke="#2563eb" name="Median P2P" connectNulls={false} strokeWidth={2} />
-              <Line type="monotone" dataKey="peak" stroke="#dc2626" name="Peak P2P" connectNulls={false} strokeWidth={1.5} strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="sampleIndex" 
+                type="number"
+                domain={[0, 899]}
+                minTickGap={60} 
+                tickFormatter={(value) => {
+                  const minsAgo = Math.round((899 - value) / 60);
+                  if (minsAgo <= 0) return 'Now';
+                  return `-${minsAgo}m`;
+                }}
+                label={{ value: 'Relative Time', position: 'insideBottom', offset: -15 }} 
+              />
+              <YAxis 
+                domain={[0, 5000]} 
+                tickCount={6}
+                label={{ value: 'Relative ADC', angle: -90, position: 'insideLeft', offset: -8 }} 
+              />
+              
+              <Tooltip 
+                labelFormatter={(value) => {
+                  const valNum = typeof value === 'number' ? value : Number(value);
+                  const minsAgo = Math.round((899 - valNum) / 60);
+                  return minsAgo <= 0 ? 'Current Sample' : `${minsAgo}m ago`;
+                }}
+                formatter={(value, name) => [
+                  value !== null && value !== undefined ? `${value} units` : 'N/A', 
+                  String(name ?? '')
+                ]}
+              />
+              
+              <Line type="monotone" dataKey="median" stroke="#2563eb" name="Median P2P" connectNulls={false} strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="peak" stroke="#dc2626" name="Peak P2P" connectNulls={false} strokeWidth={1.5} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
