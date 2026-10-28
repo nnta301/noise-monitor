@@ -67,7 +67,7 @@ export function App() {
       }
 
       const result = await response.json();
-      const packetData: TelemetryPayload | null = 
+      const packetData: TelemetryPayload | null =
         result.packet || result.latest_measurement || (result.median_p2p ? result : null);
 
       if (packetData) {
@@ -85,7 +85,7 @@ export function App() {
           const rawPacket = packetData as unknown as { seq?: number; sequence?: number };
           const newSeq = rawPacket.seq ?? packetData.sequence;
           const newBootId = packetData.boot_id;
-          
+
           if (newSeq !== undefined && prev.some(p => {
             const itemSeq = (p as unknown as { seq?: number; sequence?: number }).seq ?? p.sequence;
             return itemSeq === newSeq && p.boot_id === newBootId;
@@ -149,7 +149,7 @@ export function App() {
   }, [lastUpdated]);
 
   const MAX_SAMPLES = 900;
-  
+
   const getLatestSampleTime = (packets: TelemetryPayload[], fallbackTimeMs: number) => {
     if (packets.length === 0) return fallbackTimeMs;
     const last = packets[packets.length - 1];
@@ -189,9 +189,9 @@ export function App() {
 
   const getLatestKPIs = (packets: TelemetryPayload[]) => {
     if (isStale || packets.length === 0) return { median: 'N/A', peak: 'N/A' };
-    
+
     const lastPacket = packets[packets.length - 1];
-    
+
     let medianVal: string | number = 'N/A';
     if (lastPacket.median_p2p) {
       for (let i = lastPacket.median_p2p.length - 1; i >= 0; i--) {
@@ -282,25 +282,25 @@ export function App() {
           <button
             onClick={handleManualRefresh}
             disabled={isRefreshing}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '6px', 
-              padding: '6px 12px', 
-              cursor: isRefreshing ? 'not-allowed' : 'pointer', 
-              border: '1px solid #cbd5e1', 
-              borderRadius: '6px', 
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              cursor: isRefreshing ? 'not-allowed' : 'pointer',
+              border: '1px solid #cbd5e1',
+              borderRadius: '6px',
               backgroundColor: '#fff',
               opacity: isRefreshing ? 0.7 : 1,
               transition: 'all 0.2s ease'
             }}
           >
-            <RefreshCw 
-              size={14} 
-              style={{ 
+            <RefreshCw
+              size={14}
+              style={{
                 transition: 'transform 0.5s ease',
-                transform: isRefreshing ? 'rotate(360deg)' : 'none' 
-              }} 
+                transform: isRefreshing ? 'rotate(360deg)' : 'none'
+              }}
             />
             {isRefreshing ? 'Refreshing...' : 'Refresh Now'}
           </button>
@@ -310,36 +310,36 @@ export function App() {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 30, left: 20, bottom: 25 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="sampleIndex" 
+              <XAxis
+                dataKey="sampleIndex"
                 type="number"
                 domain={[0, 899]}
-                minTickGap={60} 
+                minTickGap={60}
                 tickFormatter={(value) => {
                   const minsAgo = Math.round((899 - value) / 60);
                   if (minsAgo <= 0) return 'Now';
                   return `-${minsAgo}m`;
                 }}
-                label={{ value: 'Relative Time', position: 'insideBottom', offset: -15 }} 
+                label={{ value: 'Relative Time', position: 'insideBottom', offset: -15 }}
               />
-              <YAxis 
-                domain={[0, 5000]} 
+              <YAxis
+                domain={[0, 5000]}
                 tickCount={6}
-                label={{ value: 'Relative ADC', angle: -90, position: 'insideLeft', offset: -8 }} 
+                label={{ value: 'Relative ADC', angle: -90, position: 'insideLeft', offset: -8 }}
               />
-              
-              <Tooltip 
+
+              <Tooltip
                 labelFormatter={(value) => {
                   const valNum = typeof value === 'number' ? value : Number(value);
                   const minsAgo = Math.round((899 - valNum) / 60);
                   return minsAgo <= 0 ? 'Current Sample' : `${minsAgo}m ago`;
                 }}
                 formatter={(value, name) => [
-                  value !== null && value !== undefined ? `${value} units` : 'N/A', 
+                  value !== null && value !== undefined ? `${value} units` : 'N/A',
                   String(name ?? '')
                 ]}
               />
-              
+
               <Line type="monotone" dataKey="median" stroke="#2563eb" name="Median P2P" connectNulls={false} strokeWidth={2} dot={false} isAnimationActive={false} />
               <Line type="monotone" dataKey="peak" stroke="#dc2626" name="Peak P2P" connectNulls={false} strokeWidth={1.5} dot={false} isAnimationActive={false} />
             </LineChart>
