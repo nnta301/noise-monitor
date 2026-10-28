@@ -33,7 +33,6 @@ export function App() {
 
   const requestGen = useRef<number>(0);
   const needsHistoryRef = useRef<boolean>(true);
-  const lastPollTimeRef = useRef<number>(Date.now());
 
   const fetchHistory = async (gen: number) => {
     try {
@@ -146,22 +145,12 @@ export function App() {
     const poll = async () => {
       if (isCancelled) return;
 
-      const now = Date.now();
-      // CodeRabbit Fix 1: Phát hiện tab ẩn bị browser đóng băng > 15s để chủ động nạp lại history bị hổng
-      if (now - lastPollTimeRef.current > 15000) {
-        needsHistoryRef.current = true;
-      }
-      lastPollTimeRef.current = now;
-
       const currentGen = ++requestGen.current;
 
-      // CodeRabbit Fix 2: Gọi fetchHistory CHẠY NGẦM, tuyệt đối KHÔNG AWAIT để không block telemetry
       if (needsHistoryRef.current) {
-        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-        fetchHistory(currentGen);
+        fetchHistory(currentGen).catch(() => {});
       }
 
-      // Chỉ chờ gói tin realtime
       await fetchLatestTelemetry(currentGen);
 
       timer = setTimeout(poll, 5000);
