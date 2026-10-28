@@ -31,9 +31,9 @@ export function App() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  // Token thế hệ để chống Race Condition khi có nhiều Request chạy song song
   const requestGen = useRef<number>(0);
   const needsHistoryRef = useRef<boolean>(true);
+  const lastPollTimeRef = useRef<number>(Date.now());
 
   const fetchHistory = async (gen: number) => {
     try {
@@ -48,7 +48,6 @@ export function App() {
 
       const result = await response.json();
 
-      // Hủy bỏ cập nhật State nếu có một Request mới hơn đã được khởi chạy
       if (gen !== requestGen.current) return;
 
       const packets = Array.isArray(result) ? result : (result.items || result.packets || []);
@@ -131,7 +130,6 @@ export function App() {
     if (isRefreshing) return;
     setIsRefreshing(true);
 
-    // Tăng mã token và buộc nạp lại cả 2 API bằng cùng 1 mã token mới nhất
     const currentGen = ++requestGen.current;
 
     try {
@@ -148,14 +146,24 @@ export function App() {
     const poll = async () => {
       if (isCancelled) return;
 
+      const now = Date.now();
+      // CodeRabbit Fix 1: Phát hiện tab ẩn bị browser đóng băng > 15s để chủ động nạp lại history bị hổng
+      if (now - lastPollTimeRef.current > 15000) {
+        needsHistoryRef.current = true;
+      }
+      lastPollTimeRef.current = now;
+
       const currentGen = ++requestGen.current;
 
-      // Nếu lần load lịch sử trước đó bị fail, tự động retry lại trong vòng lặp polling
+      // CodeRabbit Fix 2: Gọi fetchHistory CHẠY NGẦM, tuyệt đối KHÔNG AWAIT để không block telemetry
       if (needsHistoryRef.current) {
-        await fetchHistory(currentGen);
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        fetchHistory(currentGen);
       }
 
+      // Chỉ chờ gói tin realtime
       await fetchLatestTelemetry(currentGen);
+
       timer = setTimeout(poll, 5000);
     };
 
