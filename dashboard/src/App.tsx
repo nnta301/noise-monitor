@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Activity, AlertTriangle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import type { TelemetryPayload } from './types/telemetry';
@@ -20,6 +20,22 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 const DEVICE_ID = import.meta.env.VITE_DEVICE_ID || 'esp32-sleep-monitor-01';
 const READ_KEY = import.meta.env.VITE_READ_KEY || '';
 
+// Đưa hàm mergePackets ra ngoài component để đảm bảo tính thuần khiết
+const mergePackets = (prev: TelemetryPayload[], incoming: TelemetryPayload[]) => {
+  const combined = [...prev, ...incoming];
+  const unique = Array.from(new Map(combined.map(p => {
+    const key = `${p.boot_id}-${(p as unknown as { seq?: number; sequence?: number }).seq ?? p.sequence}`;
+    return [key, p];
+  })).values());
+
+  unique.sort((a, b) => {
+    const timeA = a.measured_at ? new Date(a.measured_at).getTime() : 0;
+    const timeB = b.measured_at ? new Date(b.measured_at).getTime() : 0;
+    return timeA - timeB;
+  });
+  return unique.slice(-90);
+};
+
 export function App() {
   const [data, setData] = useState<TelemetryPayload | null>(null);
   const [historyPackets, setHistoryPackets] = useState<TelemetryPayload[]>([]);
@@ -31,10 +47,18 @@ export function App() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  const requestGen = useRef<number>(0);
-  const needsHistoryRef = useRef<boolean>(true);
+  const liveGenRef = useRef<number>(0);
+  const historyGenRef = useRef<number>(0);
 
-  const fetchHistory = async (gen: number) => {
+  const isHistoryInFlightRef = useRef<boolean>(false);
+  const needsHistoryRef = useRef<boolean>(true);
+  const lastPollTimeRef = useRef<number>(0);
+
+  // Dùng useCallback để thỏa mãn quy tắc react-hooks/exhaustive-deps
+  const fetchHistory = useCallback(async (gen: number) => {
+    if (isHistoryInFlightRef.current && gen === historyGenRef.current) return;
+    isHistoryInFlightRef.current = true;
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/devices/${DEVICE_ID}/history?t=${Date.now()}`, {
         headers: { 'X-Read-Key': READ_KEY },
@@ -47,23 +71,33 @@ export function App() {
 
       const result = await response.json();
 
-      if (gen !== requestGen.current) return;
+      if (gen !== historyGenRef.current) return;
 
-      const packets = Array.isArray(result) ? result : (result.items || result.packets || []);
-      if (packets.length > 0) {
-        setHistoryPackets(packets.slice(-90));
+      const items = Array.isArray(result) ? result : (result.items || result.packets || []);
+
+      // Fix lỗi any bằng cách khai báo kiểu giao cắt rõ ràng
+      const normalizedPackets: TelemetryPayload[] = items.map(
+        (item: { packet?: TelemetryPayload } & TelemetryPayload) => item.packet || item
+      ).reverse();
+
+      if (normalizedPackets.length > 0) {
+        setHistoryPackets(prev => mergePackets(prev, normalizedPackets));
       }
 
       setHistoryError(null);
       needsHistoryRef.current = false;
     } catch (err) {
-      if (gen !== requestGen.current) return;
+      if (gen !== historyGenRef.current) return;
       setHistoryError(err instanceof Error ? err.message : 'Failed to load history');
       needsHistoryRef.current = true;
+    } finally {
+      if (gen === historyGenRef.current) {
+        isHistoryInFlightRef.current = false;
+      }
     }
-  };
+  }, []);
 
-  const fetchLatestTelemetry = async (gen: number) => {
+  const fetchLatestTelemetry = useCallback(async (gen: number) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/v1/devices/${DEVICE_ID}/latest?t=${Date.now()}`, {
         headers: { 'X-Read-Key': READ_KEY },
@@ -72,7 +106,7 @@ export function App() {
 
       if (!response.ok) {
         if (response.status === 404) {
-          if (gen !== requestGen.current) return;
+          if (gen !== liveGenRef.current) return;
           setData(null);
           setIsLiveApi(true);
           setIsStale(true);
@@ -85,7 +119,7 @@ export function App() {
       const result = await response.json();
       const packetData: TelemetryPayload | null = result.packet || result.latest_measurement || (result.median_p2p ? result : null);
 
-      if (gen !== requestGen.current) return;
+      if (gen !== liveGenRef.current) return;
 
       if (packetData) {
         setData(packetData);
@@ -97,23 +131,10 @@ export function App() {
         setIsStale(isDataStale);
         setIsLiveApi(true);
         setApiError(null);
-
-        setHistoryPackets(prev => {
-          const rawPacket = packetData as unknown as { seq?: number; sequence?: number };
-          const newSeq = rawPacket.seq ?? packetData.sequence;
-          const newBootId = packetData.boot_id;
-
-          if (newSeq !== undefined && prev.some(p => {
-            const itemSeq = (p as unknown as { seq?: number; sequence?: number }).seq ?? p.sequence;
-            return itemSeq === newSeq && p.boot_id === newBootId;
-          })) {
-            return prev;
-          }
-          return [...prev, packetData].slice(-90);
-        });
+        setHistoryPackets(prev => mergePackets(prev, [packetData]));
       }
     } catch (err) {
-      if (gen !== requestGen.current) return;
+      if (gen !== liveGenRef.current) return;
       setIsLiveApi(false);
       setApiError(err instanceof Error ? err.message : 'Failed to connect to backend API');
 
@@ -123,16 +144,17 @@ export function App() {
       }
       setIsStale(true);
     }
-  };
+  }, []);
 
   const handleManualRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
 
-    const currentGen = ++requestGen.current;
+    const nextLiveGen = ++liveGenRef.current;
+    const nextHistoryGen = ++historyGenRef.current;
 
     try {
-      await Promise.all([fetchHistory(currentGen), fetchLatestTelemetry(currentGen)]);
+      await Promise.all([fetchHistory(nextHistoryGen), fetchLatestTelemetry(nextLiveGen)]);
     } finally {
       setTimeout(() => setIsRefreshing(false), 500);
     }
@@ -145,23 +167,45 @@ export function App() {
     const poll = async () => {
       if (isCancelled) return;
 
-      const currentGen = ++requestGen.current;
+      const now = Date.now();
 
-      if (needsHistoryRef.current) {
-        fetchHistory(currentGen).catch(() => {});
+      if (lastPollTimeRef.current === 0) {
+        lastPollTimeRef.current = now;
       }
 
-      await fetchLatestTelemetry(currentGen);
+      const timeSinceLastPoll = now - lastPollTimeRef.current;
+      if (timeSinceLastPoll > 15000) {
+        needsHistoryRef.current = true;
+      }
+      lastPollTimeRef.current = now;
+
+      const nextLiveGen = ++liveGenRef.current;
+
+      if (needsHistoryRef.current && !isHistoryInFlightRef.current) {
+        const nextHistoryGen = ++historyGenRef.current;
+        void fetchHistory(nextHistoryGen);
+      }
+
+      await fetchLatestTelemetry(nextLiveGen);
 
       timer = setTimeout(poll, 5000);
     };
 
     poll();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        needsHistoryRef.current = true;
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       isCancelled = true;
       clearTimeout(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [fetchHistory, fetchLatestTelemetry]);
 
   useEffect(() => {
     const checkStaleInterval = setInterval(() => {
