@@ -41,3 +41,14 @@ docs/       requirements, architecture, hardware, workflow, and sprints
 - [Roadmap](docs/sprints/README.md) and [Sprint 1](docs/sprints/sprint-01.md)
 
 Current sprint: **Sprint 1 — Planning**.
+
+## Dashboard Setup
+The frontend is a React + TypeScript application. To run it locally:
+1. `cd dashboard`
+2. `npm install`
+3. `npm run dev`
+
+The dashboard uses these optional Vite variables. Set them before `npm run dev`:
+- `VITE_API_BASE_URL`: API base URL. Default: `http://localhost:8000`.
+- `VITE_DEVICE_ID`: device ID to query. Default: `esp32-sleep-monitor-01`.
+3. `npm run dev`
