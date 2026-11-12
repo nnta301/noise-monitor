@@ -1,0 +1,9 @@
+$ python scripts/simulate_telemetry.py \
+    --endpoint http://127.0.0.1:8000/api/v1/telemetry \
+    --scenario peaks --interval 1 --duration 90 --start <now-795s>
+SYNTHETIC scenario=peaks interval=1s accelerated=True; each batch …
+SYNTHETIC sequence=0 outcome=accepted
+SYNTHETIC sequence=1 outcome=accepted
+…
+SYNTHETIC sequence=89 outcome=accepted
+boot_id: 6fb56da2-ed7d-4000-842c-7c2cfad50634

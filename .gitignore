@@ -39,3 +39,15 @@ wifi-credentials.*
 .idea/
 .DS_Store
 Thumbs.db
+
+# LaTeX
+*.aux
+*.nav
+*.snm
+*.toc
+*.out
+*.vrb
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.xdv
