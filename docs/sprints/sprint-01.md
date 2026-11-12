@@ -1,6 +1,6 @@
 # Sprint 1 — Core Telemetry Pipeline
 
-**Status:** Planning
+**Status:** In progress — software complete; hardware validation (#3, #7) pending
 
 **Goal:** “Build a complete data path from the microphone and ESP32 to the database and dashboard, with a 10-second transmission interval.”
 
