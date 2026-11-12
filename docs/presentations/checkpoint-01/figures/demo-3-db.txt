@@ -1,0 +1,10 @@
+SELECT COUNT(*) FROM packets
+  before re-send (2a): 90
+  after  re-send (2a): 90   -> equal, duplicate not stored
+
+device_id = simulator-synthetic-01 (all rows)
+boot_id | seq | measured_at | received_at
+6fb56da2… | 89 | 2026-11-12T15:36:16Z | 2026-11-12T15:36:12Z
+6fb56da2… | 88 | 2026-11-12T15:36:06Z | 2026-11-12T15:36:11Z
+6fb56da2… | 87 | 2026-11-12T15:35:56Z | 2026-11-12T15:36:10Z
+6fb56da2… | 86 | 2026-11-12T15:35:46Z | 2026-11-12T15:36:09Z

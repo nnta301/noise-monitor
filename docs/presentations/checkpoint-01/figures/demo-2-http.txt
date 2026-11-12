@@ -1,0 +1,17 @@
+$ curl -X POST /api/v1/telemetry -H "X-Device-Key: demo-device-key" \
+    -H "Content-Type: application/json" -d @packet_seq89.json
+HTTP/1.1 202
+{"outcome":"duplicate","packet_key":{"device_id":"simulator-synthetic-01",
+ "boot_id":"6fb56da2-ed7d-4000-842c-7c2cfad50634","sequence":89}}
+
+$ curl -X POST /api/v1/telemetry -H "X-Device-Key: wrong-key" …
+HTTP/1.1 401
+{"error":{"code":"device_authentication_failed",
+ "message":"A valid device key is required."}}
+
+$ curl /api/v1/devices/simulator-synthetic-01/latest \
+    -H "X-Read-Key: demo-read-key"
+HTTP/1.1 200
+{"packet":{"boot_id":"6fb56da2-ed7d-4000-842c-7c2cfad50634","sequence":89,
+ "measured_at":"2026-11-12T15:36:16Z",…},
+ "freshness":{"status":"fresh","age_seconds":7}}

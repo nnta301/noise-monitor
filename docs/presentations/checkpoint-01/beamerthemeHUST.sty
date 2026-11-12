@@ -1,0 +1,270 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{beamerthemeHUST}[2025/12/12 HUST Beamer Theme Full, Made by Habee from FRC - FaMI Rebel Club]
+
+\RequirePackage{tikz}
+\RequirePackage{xcolor}
+\RequirePackage{graphicx}
+
+\newcommand{\hust@ratio}{43}
+\newcommand{\hust@colorname}{red}
+\definecolor{hustprimary}{HTML}{ce1628}
+
+\DeclareOption{169}{\renewcommand{\hust@ratio}{169}}
+\DeclareOption{43}{\renewcommand{\hust@ratio}{43}}
+\DeclareOption{blue}{
+	\renewcommand{\hust@colorname}{blue}
+	\definecolor{hustprimary}{HTML}{005a8c}
+}
+\DeclareOption{red}{
+	\renewcommand{\hust@colorname}{red}
+	\definecolor{hustprimary}{HTML}{ce1628}
+}
+\ProcessOptions\relax
+
+\newcommand{\hustbg}[1]{hust-\hust@colorname-\hust@ratio-#1.png}
+
+\newcommand{\hust@barstyle}{}
+\newcommand{\useThickBar}{\renewcommand{\hust@barstyle}{-thick}}
+\newcommand{\useThinBar}{\renewcommand{\hust@barstyle}{}}
+
+\graphicspath{{images/}}
+
+\providecommand{\slideContentLeftMargin}{1.5cm}
+\providecommand{\slideContentRightMargin}{1cm}
+\providecommand{\slideContentTopPadding}{5cm}
+
+\setbeamersize{
+	text margin left=\slideContentLeftMargin,
+	text margin right=\slideContentRightMargin
+}
+
+\addtobeamertemplate{frametitle}{}{
+	\ifx\insertframetitle\empty
+	\else
+	\vspace{\slideContentTopPadding}
+	\fi
+}
+
+\setbeamertemplate{sidebar right}{}
+
+\newcommand{\useStyleFull}{
+	\setbeamertemplate{background}{
+		\includegraphics[width=\paperwidth,height=\paperheight]{\hustbg{content-full\hust@barstyle}}
+		\drawHustPageNum
+	}
+}
+
+\newcommand{\useStyleLogoOnly}{
+	\setbeamertemplate{background}{
+		\includegraphics[width=\paperwidth,height=\paperheight]{\hustbg{content-logo\hust@barstyle}}
+		\drawHustPageNum
+	}
+}
+
+\newcommand{\useStyleHustFull}{
+	\setbeamertemplate{background}{
+		\includegraphics[width=\paperwidth,height=\paperheight]{\hustbg{content-hust-full\hust@barstyle}}
+		\drawHustPageNum
+	}
+}
+
+\newcommand{\useStyleHustOnly}{
+	\setbeamertemplate{background}{
+		\includegraphics[width=\paperwidth,height=\paperheight]{\hustbg{content-hust\hust@barstyle}}
+		\drawHustPageNum
+	}
+}
+
+\useThinBar
+\useStyleFull
+
+\providecommand{\titlePageTitleX}{0cm}
+\providecommand{\titlePageTitleY}{0cm}
+
+\newcommand{\alignLeft}{\raggedright}
+\newcommand{\alignCenter}{\centering}
+\newcommand{\alignRight}{\raggedleft}
+
+\newcommand{\hustTitleAlign}{\alignCenter}
+\newcommand{\hustSubtitleAlign}{\alignCenter}
+\newcommand{\hustAuthorAlign}{\alignCenter}
+\newcommand{\hustInstAlign}{\alignCenter}
+
+\newcommand{\husttitlepage}{
+	{
+		\setbeamertemplate{background}{
+			\includegraphics[width=\paperwidth,height=\paperheight]{\hustbg{title}}
+			\drawHustPageNum
+		}
+		\begin{frame}[plain]
+			\begin{tikzpicture}[remember picture, overlay]
+				\node[
+				anchor=center,
+				xshift=\titlePageTitleX,
+				yshift=\titlePageTitleY,
+				text width=0.85\paperwidth,
+				]
+				at (current page.center)
+				{
+					{\hustTitleAlign \Huge \bfseries \color{hustprimary} \MakeUppercase{\inserttitle} \par}
+					{\hustSubtitleAlign \Large \bfseries \color{black!80} \insertsubtitle \par}
+					\vspace{0.3cm}
+					{\hustAuthorAlign
+						{\color{hustprimary} \large \textbf{Người thực hiện:}} \\[5pt]
+						{\color{black} \insertauthor} \par
+					}
+					{\hustInstAlign
+						{\small \color{hustprimary} \bfseries \insertinstitute} \par
+						\vspace{0.2cm}
+					}
+				};
+			\end{tikzpicture}
+		\end{frame}
+	}
+}
+
+\newcommand{\hustintropage}[1]{
+	{
+		\setbeamertemplate{background}{\includegraphics[width=\paperwidth,height=\paperheight]{\hustbg{intro}}}
+		\begin{frame}[plain]
+			\centering \vspace{2cm} \Huge \textcolor{white}{\textbf{#1}}
+		\end{frame}
+	}
+}
+
+\newcommand{\hustsectionpage}[1]{
+	{
+		\setbeamertemplate{background}{\includegraphics[width=\paperwidth,height=\paperheight]{\hustbg{section}}}
+		\begin{frame}[plain]
+			\centering \Huge \textcolor{white}{\textbf{#1}}
+		\end{frame}
+	}
+}
+
+\newcommand{\hustthankyou}{
+	{
+		\setbeamertemplate{background}{
+			\includegraphics[width=\paperwidth,height=\paperheight]{\hustbg{end}}
+			\drawHustPageNum
+		}
+		\begin{frame}[plain] \end{frame}
+	}
+}
+
+\newcommand{\hustcontactpage}[2]{
+	{
+		\setbeamertemplate{background}{
+			\includegraphics[width=\paperwidth,height=\paperheight]{\hustbg{end-empty}}
+			\drawHustPageNum
+		}
+		\begin{frame}[plain]
+			\begin{columns}
+				\column{0.35\paperwidth}\hfill
+				\column{0.6\paperwidth}
+				{
+					\color{hustprimary}
+					\Large \textbf{#1}
+				}
+
+				\vspace{1em}
+				{\color{black}\normalsize #2}
+			\end{columns}
+		\end{frame}
+	}
+}
+
+\setbeamercolor{palette primary}{bg=hustprimary,fg=white}
+\setbeamercolor{frametitle}{fg=white}
+\setbeamercolor{title}{fg=hustprimary}
+\setbeamertemplate{navigation symbols}{}
+
+\ifdefined\slideContentLeftMargin \else \def\slideContentLeftMargin{1cm} \fi
+\ifdefined\slideContentRightMargin \else \def\slideContentRightMargin{1cm} \fi
+
+\setbeamersize{
+	text margin left=\slideContentLeftMargin,
+	text margin right=\slideContentRightMargin
+}
+
+\ifdefined\hustHeaderHeight \else \def\hustHeaderHeight{2.2cm} \fi
+
+\setbeamertemplate{headline}{
+	\leavevmode
+	\vspace*{\hustHeaderHeight}
+}
+
+\setbeamertemplate{frametitle}{
+	\nointerlineskip
+	\begin{tikzpicture}[remember picture, overlay]
+		\node[anchor=west, xshift=0.3cm, yshift=-0.4cm]
+		at (current page.north west)
+		{
+			\usebeamerfont{frametitle}\usebeamercolor[fg]{frametitle}\insertframetitle
+		};
+	\end{tikzpicture}
+}
+
+\def\slideContentBotMargin{3.5cm}
+
+\newif\ifHustShowPageNum
+\HustShowPageNumfalse
+
+\newcommand{\drawHustPageNum}{%
+	\ifHustShowPageNum
+	\begin{tikzpicture}[remember picture, overlay]
+		\node[
+		anchor=south east,
+		xshift=-0.35cm,
+		yshift=0.1cm
+		]
+		at (current page.south east)
+		{
+			\color{hustprimary} \bfseries \small \insertpagenumber
+		};
+	\end{tikzpicture}%
+	\fi
+}
+
+\newcommand{\showPageNumber}{\HustShowPageNumtrue}
+\newcommand{\hidePageNumber}{\HustShowPageNumfalse}
+\newcommand{\resetPageCount}{\setcounter{framenumber}{0}}
+
+\setbeamercolor{toc number}{fg=hustprimary}
+\setbeamercolor{toc text}{fg=black}
+\setbeamercolor{toc subtext}{fg=black!70}
+
+\setbeamertemplate{section in toc}{
+	\leavevmode
+	\leftskip=1.5em
+	\llap{
+		\usebeamerfont{section in toc}
+		\usebeamercolor[fg]{toc number}
+		\inserttocsectionnumber.
+		\hskip0.25em
+	}
+	{
+		\usebeamerfont{section in toc}
+		\usebeamercolor[fg]{toc text}
+		\inserttocsection
+	}
+	\par
+}
+
+\setbeamertemplate{subsection in toc}{
+	\leavevmode
+	\leftskip=3.5em
+	\llap{
+		\usebeamerfont{subsection in toc}
+		\usebeamercolor[fg]{toc number}
+		\small
+		\inserttocsectionnumber.\inserttocsubsectionnumber
+		\hskip0.5em
+	}
+	{
+		\usebeamerfont{subsection in toc}
+		\usebeamercolor[fg]{toc subtext}
+		\small
+		\inserttocsubsection
+	}
+	\par
+}
